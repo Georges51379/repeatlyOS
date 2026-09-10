@@ -791,13 +791,50 @@
 - `npm run build` passes; no new lint issues beyond the existing
   codebase-wide `set-state-in-effect` pattern (present in the original
   `Search.tsx` before this change too).
-- **Not yet live-verified** — pending the user applying
-  `20260910000020_product_attributes.sql`. Planned verification: a
-  merchant tags a product with brand/size/color, confirm those facets
-  appear publicly and filtering narrows results correctly; confirm a
-  product on a non-visible business's attributes are NOT publicly
-  readable; confirm another business's owner cannot write attributes onto
-  a product they don't own; then clean up.
+- **Found and fixed a real gap while setting up this verification
+  (2026-09-10)**: `20260910000018`'s status-change trigger only guarded
+  UPDATE, never INSERT — `businesses_insert_authenticated` had no
+  constraint on the status value, so a plain authenticated user could
+  create a business with `status: 'active', marketplace_visible: true`
+  directly, fully self-approving at creation time. Confirmed live before
+  fixing. Fixed in `20260910000021_restrict_business_status_on_insert.sql`
+  (a BEFORE INSERT trigger requiring a non-admin-created business to
+  start `draft` or `pending_approval`); re-verified the same insert now
+  fails with the expected message, and a properly-created
+  `pending_approval` business still inserts fine. Also incidentally
+  confirmed the Phase 7 UPDATE trigger is real defense-in-depth, not just
+  RLS-adjacent: even a `service_role` PATCH (which bypasses RLS entirely)
+  was rejected, since a plain Postgres trigger fires regardless of the
+  calling role's RLS-bypass status — approving a business now requires an
+  actual signed-in admin session, not just elevated credentials.
+- **Live-verified (2026-09-10)**, migration applied. Test setup: 2
+  merchants, 1 platform admin, business A (approved, active,
+  marketplace-visible) with 2 tagged products (Nike/43/Black,
+  Adidas/42/White), business B (left in `pending_approval`, i.e. never
+  approved/hidden) with 1 tagged product (Puma).
+  - `anon` reading `product_attributes` with no filter got exactly the 6
+    rows belonging to business A's products — the hidden business B's
+    `Puma` row was absent, confirming the deferred-to-`products`-RLS
+    design (checking `exists(select 1 from products where id =
+    product_id)`) correctly inherits product visibility without
+    duplicating the business-status check.
+  - The actual embedded-resource query pattern `Search.tsx` builds
+    (`attr_0`/`attr_1` aliased joins) was tested directly: filtering by
+    `brand=Nike AND size=43` returned only the Kobe shoe; filtering by
+    `brand=Adidas` alone returned only the Ultraboost — both facets and
+    facet combinations narrow correctly.
+  - An unrelated merchant (no role on business A) attempting to insert an
+    attribute onto business A's product got `42501` (RLS violation) —
+    confirmed no rows were written.
+  - All test data (2 businesses — cascaded their products/attributes —,
+    their audit-log rows, 1 admin grant, 3 auth users) deleted afterward.
+  - **This completes Phase 8's faceted product search (part 1).**
+  - Left Batroun's `marketplace_enabled` set to `true` (it had been off
+    since Phase 6, which is why nothing was visible when the user first
+    tried browsing `/batroun`) — this directly unblocks the browsing flow
+    the user asked about earlier; there are currently zero real
+    businesses in it, so `/batroun` will show an empty state until one is
+    registered and approved.
 - Deliberately still not built: the optional natural-language query layer
   (LLM extracts filters, applies them through this same faceted query) —
   scoped in `docs/REPEATLYOS_MIGRATION_PLAN.md` as an explicitly optional
@@ -805,14 +842,11 @@
 
 ## In Progress
 
-- Phase 8's SaaS entitlements core is complete and live-verified.
-  Faceted product search is built, pending the user running the new
-  migration before live verification.
+- Phase 8 (SaaS entitlements + faceted product search) is complete and
+  live-verified. Nothing else is actively in progress.
 
 ## Next
 
-- Live-verify faceted product search once the user runs
-  `20260910000020_product_attributes.sql`.
 - Phase 9 (hardening — tenant-isolation/authz regression tests, the
   previously-flagged rate-limiting/CAPTCHA gap on public marketplace
   insert paths) and Phase 10 (production prep).
