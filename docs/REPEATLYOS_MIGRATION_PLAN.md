@@ -5,52 +5,36 @@ short version is: **there is no existing backend**, so this "migration" is
 really "build a real backend under the existing frontend demo, then cut the
 frontend over to it one domain at a time."
 
-## Decision Needed Before Phase 1 (blocking)
+## Backend Stack Decision (confirmed 2026-09-10)
 
-The master prompt says: *"Only stop for user input if an irreversible business
-decision genuinely blocks implementation."* Choosing the backend stack is that
-decision — nothing in the repo implies an answer, and reversing it later means
-rewriting migrations, API code, deployment config, and auth integration.
+**Supabase** (Postgres + Auth + Storage, tenant isolation enforced via Row
+Level Security) was chosen over a hand-rolled Express/Fastify+Prisma API or a
+Next.js migration. Rationale for how this shapes the plan:
 
-Question to resolve: **what backend/database/auth stack should RepeatlyOS run
-on?**
+- The existing Vite + React Router frontend stays fully intact — no framework
+  migration required. Supabase is called directly from the client via
+  `@supabase/supabase-js`.
+- "Server-side enforcement" of tenant isolation (master-prompt §6, §26) is
+  implemented as **Postgres Row Level Security policies**, not application
+  code — this is genuinely server-side (enforced by the database itself,
+  independent of any client), which satisfies the requirement without a
+  custom API server. Every table that carries tenant data has RLS enabled by
+  default; there is no "trust the frontend" path.
+- Trade-off accepted knowingly: coupling to Supabase for auth/storage/DB
+  hosting. If this ever needs to change, the RLS policies and schema
+  translate directly to any Postgres host; only the auth/storage calls would
+  need replacing.
+- Anything genuinely requiring custom server logic beyond what RLS + Postgres
+  functions/triggers can express (e.g., a future WhatsApp Business API
+  webhook receiver, payment provider webhooks) will need a small serverless
+  function (Supabase Edge Functions) — not needed yet for Phase 1.
 
-Reasonable options, roughly ordered by how much they keep the current Vite
-frontend as-is:
-
-1. **Node/Express (or Fastify) API + PostgreSQL + Prisma, deployed separately
-   from the Vite frontend.** Clean separation of concerns, closest to what the
-   master prompt's language ("route/controller → validation → authorization →
-   service → database") assumes. Requires standing up a second deployable
-   service and CORS/auth-token wiring between it and the Vite app.
-2. **Migrate the frontend to Next.js (App Router) and add API routes /
-   server actions in the same project, PostgreSQL + Prisma or Drizzle.** One
-   deployable, SSR available for the public marketplace/SEO requirement
-   (master-prompt §35), but means moving 60+ existing files off plain
-   Vite+React Router onto Next's routing and rendering model — a real (if
-   mechanical) migration cost paid up front.
-3. **Supabase (Postgres + Auth + Storage + row-level security) as the
-   backend, Vite frontend calls it directly via the Supabase client.**
-   Fastest path to a working multi-tenant backend with less custom code
-   (RLS policies can enforce tenant isolation at the database layer, which
-   maps well to master-prompt §26's "server-side enforcement" requirement),
-   at the cost of coupling to a specific vendor.
-
-**Recommendation:** Option 1 (Express/Fastify + PostgreSQL + Prisma, kept as a
-separate service from the existing Vite app) is the safest default: it keeps
-the current frontend fully intact and reusable exactly as the master prompt
-requires ("do not rewrite... do not redesign working RepeatlyOS UI without
-reason"), matches the layered API design the master prompt describes almost
-line-for-line, and avoids new vendor lock-in before the business model is
-proven. Option 3 is worth a second look if speed-to-first-working-marketplace
-matters more than avoiding vendor lock-in. Option 2 mainly pays off once SEO
-for the public city marketplace becomes a priority (it can be adopted later —
-choosing Option 1 now does not foreclose it, since the marketplace frontend
-could become a separate Next.js app consuming the same API).
-
-**This plan assumes Option 1 will be confirmed or replaced before any Phase 1
-code is written.** Nothing below depends on which option is picked except the
-specific tooling names.
+**Important limitation to flag honestly:** no live Supabase project exists.
+I cannot create one — that requires the user's Supabase account. Phase 1 code
+below (SQL migrations, `@supabase/supabase-js` client, `AuthContext`, login/
+signup pages) is written and passes local typecheck/build, but **none of it
+has been run against a real database or verified end-to-end**, because there
+is nothing to run it against yet. See "Required Before This Is Testable" below.
 
 ## Feature Classification (master-prompt §39 format)
 
@@ -109,10 +93,35 @@ yet — `git init` and an initial commit capturing the current demo state as-is
 should happen before any Phase 1 code changes, so the pre-transformation state
 is recoverable).
 
+## Required Before Phase 1 Is Testable (action needed from you)
+
+1. Create a Supabase project at supabase.com (free tier is fine for now).
+2. In the Supabase SQL Editor, run the migration files in
+   `supabase/migrations/` **in filename order** (they are plain SQL, no CLI
+   required, though `supabase db push` works too if you use the CLI locally).
+3. Copy `.env.example` to `.env` and fill in `VITE_SUPABASE_URL` and
+   `VITE_SUPABASE_ANON_KEY` from Project Settings → API in the Supabase
+   dashboard. `.env` is git-ignored — never commit it.
+4. To grant yourself `PLATFORM_SUPER_ADMIN` for testing City/Business admin
+   features later, insert your own auth user id into `platform_admins` via
+   the SQL editor once you've signed up once through the app (see
+   `docs/REPEATLYOS_SECURITY_MODEL.md` for the exact statement).
+5. Restart `npm run dev` after setting `.env` so Vite picks up the new
+   variables.
+
+Until steps 1–3 are done, the app runs with a placeholder Supabase URL and
+`AuthContext` will show a clear "Supabase is not configured" state rather than
+crash — verified by build/typecheck, not by a live auth flow (see caveat
+above).
+
 ## Immediate Next Steps
 
-1. Confirm the backend stack decision above (or provide a different preference).
-2. `git init` + initial commit of the repository exactly as inspected, before
-   any Phase 1 changes, so this baseline is never lost.
-3. Begin Phase 1: schema for `City`/`Business`/`BusinessMembership`, auth, and
-   authorization helpers.
+1. ~~Confirm the backend stack decision above~~ — done, Supabase confirmed.
+2. ~~`git init` + initial commit of the pre-transformation baseline~~ — done.
+3. Phase 1 foundations (schema, RLS, auth scaffolding) — implemented this
+   session, see `docs/REPEATLYOS_PROGRESS.md`. Not yet wired into the 35
+   existing dashboard pages — that is Phase 3.
+4. Once you've completed the "Required Before Phase 1 Is Testable" steps
+   above and confirmed login/signup actually works against your project, we
+   proceed to Phase 2 (merchant onboarding flow: register a business, pick a
+   city/business type, submit for approval).

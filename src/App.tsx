@@ -1,5 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { DemoProvider } from './context/DemoContext';
+import { AuthProvider } from './context/AuthContext';
+import Login from './pages/auth/Login';
+import Signup from './pages/auth/Signup';
 import LandingPage from './pages/LandingPage';
 import BusinessPublicPage from './pages/BusinessPublicPage';
 import DashboardLayout from './components/DashboardLayout';
@@ -44,10 +47,13 @@ import CustomerPortal from './pages/customer/CustomerPortal';
 
 export default function App() {
   return (
+    <AuthProvider>
     <DemoProvider>
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<LandingPage />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
           <Route path="/business/elite-carwash" element={<BusinessPublicPage />} />
           <Route path="/demo/setup" element={<DemoSetup />} />
           <Route path="/demo/pitch" element={<PitchPage />} />
@@ -93,5 +99,6 @@ export default function App() {
         </Routes>
       </BrowserRouter>
     </DemoProvider>
+    </AuthProvider>
   );
 }

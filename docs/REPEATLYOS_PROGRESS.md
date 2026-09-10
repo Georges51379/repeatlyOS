@@ -14,18 +14,61 @@
 - Initialized git and committed the pre-transformation baseline as-is (see
   Migration Notes).
 
+- Backend stack decided: **Supabase** (Postgres + Auth, tenant isolation via
+  Row Level Security). See Migration Plan → "Backend Stack Decision."
+- **Phase 1 — Foundations implemented:**
+  - Schema + RLS migrations: `supabase/migrations/20260910000001_init_schema.sql`,
+    `20260910000002_rls_policies.sql`. Tables: `profiles`, `cities`,
+    `city_admins`, `platform_admins`, `business_types`, `businesses`,
+    `business_memberships`, `business_modules`, `audit_logs`. RLS enabled on
+    every table; authorization helper functions
+    (`is_platform_admin`, `is_city_admin`, `is_business_member`,
+    `has_business_role`, `has_business_permission`) implement server-side
+    tenant isolation at the database layer.
+  - Dev-only seed data: `supabase/seed.sql` (business type templates +
+    Batroun city record, both clearly separated from migrations per
+    master-prompt §38).
+  - Frontend: `@supabase/supabase-js` installed; `src/lib/supabase.ts` client
+    (fails soft to a "not configured" state rather than crashing when env
+    vars are absent); `src/types/domain.ts` hand-written types mirroring the
+    schema; `src/lib/authz.ts` client-side UX-only authorization helpers
+    (documented as non-authoritative — RLS is the real boundary);
+    `src/context/AuthContext.tsx` (session, sign up/in/out, membership
+    fetching); `/login` and `/signup` pages wired into `src/App.tsx`
+    alongside (not replacing) the existing `DemoProvider`/demo dashboard.
+  - Docs added: `REPEATLYOS_DATABASE_MODEL.md`, `REPEATLYOS_SECURITY_MODEL.md`,
+    `REPEATLYOS_ROLES_PERMISSIONS.md`, `REPEATLYOS_MODULE_SYSTEM.md`.
+  - Verified: `npm run build` (`tsc -b && vite build`) passes with 0
+    TypeScript errors after all of the above. `npm run lint` went from the
+    17-error baseline to 18 — the one new error is
+    `react-refresh/only-export-components` in `AuthContext.tsx` (it exports
+    both the `AuthProvider` component and the `useAuth` hook from one file).
+    This matches an existing convention already in the untouched
+    `DemoContext.tsx` (which has 3 instances of the same rule, exporting
+    `DemoProvider` + `useDemo` + constants together) — followed intentionally
+    for consistency rather than treated as new debt; splitting the hook into
+    its own file is a trivial future cleanup if the rule is ever enforced
+    strictly. A second potential regression (`set-state-in-effect` from a
+    redundant `setLoading(false)` in an early-return branch) was caught and
+    fixed before finalizing — removed because the initial `useState` value
+    already covered that case, so no effect body change was even needed.
+    **Not verified:** any actual Supabase auth/data flow — no live Supabase
+    project exists (see "Required Before Phase 1 Is Testable" in the
+    Migration Plan). Do not treat login/signup/RLS as confirmed-working until
+    that's been checked against a real project.
+
 ## In Progress
 
-- Awaiting decision on backend stack (see Migration Plan → "Decision Needed
-  Before Phase 1") before writing any Phase 1 foundation code (City, Business,
-  BusinessMembership, auth, authorization helpers).
+- Nothing actively in progress; paused after Phase 1 pending the user
+  provisioning a real Supabase project and confirming the auth flow works
+  end-to-end, per Migration Plan → "Required Before Phase 1 Is Testable."
 
 ## Next
 
-- Phase 1 — Foundations, once the backend stack decision is confirmed:
-  City, Business, BusinessMembership schema + migrations; authentication;
-  shared authorization helpers (`requireAuthenticatedUser`,
-  `requireBusinessMembership`, etc.).
+- Once Supabase credentials are confirmed working: Phase 2 — merchant
+  onboarding (business registration flow, city + business-type selection,
+  copying `business_types.default_modules` into `business_modules` at
+  creation, approval workflow).
 
 ## Known Issues
 
