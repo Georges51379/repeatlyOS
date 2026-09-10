@@ -732,30 +732,40 @@
   still no real payment history to compute MRR from).
 - `npm run build` passes; no new lint issues beyond the existing
   codebase-wide `set-state-in-effect` pattern.
-- **Not yet live-verified** — pending the user applying
-  `20260910000019_saas_entitlements.sql`. Planned verification: confirm a
-  fresh business lands on the free plan automatically, confirm enabling a
-  free-plan module succeeds while enabling a growth/pro-only module fails
-  with the expected message, confirm a platform admin changing a
-  business's plan immediately unlocks that module, confirm a non-owner/
-  non-admin cannot read another business's subscription, then clean up.
-- Scoped (not yet built): structured/faceted product search
-  (`product_attributes` + facet filters in `Search.tsx`) and an optional
-  natural-language query layer — see
-  `docs/REPEATLYOS_MIGRATION_PLAN.md`'s Phase 8/9 entries for the full
-  scope, added 2026-09-10 per user request.
+- **Live-verified (2026-09-10)**, migration applied. Test setup: 1
+  business (barber type, in Batroun), 3 auth users (its merchant owner, a
+  platform admin, an unrelated second merchant).
+  - The new business auto-defaulted to `free`/`active` in
+    `business_saas_subscriptions`, and `copy_default_modules` (barber's
+    defaults: bookings, customers, staff, payments, analytics) succeeded
+    through the new entitlement trigger without any change needed —
+    confirms the free plan's `included_modules` really does cover every
+    seeded business type's defaults.
+  - Merchant enabling `products` (already covered by `free`) succeeded;
+    enabling `tasks` (growth/pro-only) failed with exactly the expected
+    message (`P0001`, "not included in your current plan. Upgrade to
+    enable it."); disabling `staff` succeeded regardless of plan.
+  - Platform admin changed the business's plan to `growth`; the merchant
+    immediately retrying `tasks` then succeeded — confirms the gate reads
+    live plan state, not something cached at business-creation time.
+  - An unrelated merchant (no membership, not an admin) reading this
+    business's `business_saas_subscriptions` got an empty result.
+  - The business's own owner tried to PATCH their own subscription's
+    `plan_key` directly (self-upgrade) — empty result, plan unchanged;
+    confirms there's genuinely no self-serve billing path, only the
+    platform-admin one.
+  - All test data (1 business — cascaded its modules/subscription/
+    memberships —, 1 admin grant, 3 auth users) deleted afterward.
+  - **This completes Phase 8's SaaS-entitlements core.** Structured
+    product search (scoped into this same phase) is still unbuilt.
 
 ## In Progress
 
-- Phase 8's SaaS entitlements core (plans, subscriptions, module-gating
-  enforcement) is built and committed, pending the user running the new
-  migration before live verification. Structured product search
-  (scoped, not started) is next.
+- Phase 8's SaaS entitlements core is complete and live-verified.
+  Structured/faceted product search (scoped, not started) is next.
 
 ## Next
 
-- Live-verify Phase 8's SaaS entitlements once the user runs
-  `20260910000019_saas_entitlements.sql`.
 - Build the structured/faceted product search scoped into Phase 8/9
   (`product_attributes` table, facet filters in `Search.tsx`, optional
   NL-query layer).
