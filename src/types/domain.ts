@@ -244,6 +244,14 @@ export interface Product {
   updated_at: string;
 }
 
+export interface ProductAttribute {
+  id: string;
+  product_id: string;
+  key: string;
+  value: string;
+  created_at: string;
+}
+
 export interface InventoryItem {
   id: string;
   business_id: string;

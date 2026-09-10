@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Plus, Trash2, Pencil, ShoppingBag } from 'lucide-react';
+import { Plus, Trash2, Pencil, ShoppingBag, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useCurrentBusiness } from '../../hooks/useCurrentBusiness';
 import { hasBusinessPermission } from '../../lib/authz';
 import type { Product } from '../../types/domain';
+
+interface AttributeRow {
+  key: string;
+  value: string;
+}
 
 interface FormState {
   id: string | null;
@@ -13,9 +18,18 @@ interface FormState {
   price: string;
   sale_price: string;
   sku: string;
+  attributes: AttributeRow[];
 }
 
-const EMPTY_FORM: FormState = { id: null, name: '', category: '', price: '', sale_price: '', sku: '' };
+const EMPTY_FORM: FormState = {
+  id: null,
+  name: '',
+  category: '',
+  price: '',
+  sale_price: '',
+  sku: '',
+  attributes: [],
+};
 
 export default function Products() {
   const { memberships } = useAuth();
@@ -62,17 +76,60 @@ export default function Products() {
       sku: form.sku.trim() || null,
     };
 
-    const { error: saveError } = form.id
-      ? await supabase.from('products').update(payload).eq('id', form.id)
-      : await supabase.from('products').insert(payload);
+    let productId = form.id;
+    if (productId) {
+      const { error: saveError } = await supabase.from('products').update(payload).eq('id', productId);
+      if (saveError) {
+        setSaving(false);
+        setError(saveError.message);
+        return;
+      }
+    } else {
+      const { data: inserted, error: saveError } = await supabase.from('products').insert(payload).select('id').single();
+      if (saveError || !inserted) {
+        setSaving(false);
+        setError(saveError?.message ?? 'Failed to create product.');
+        return;
+      }
+      productId = inserted.id;
+    }
+
+    const cleanAttributes = form.attributes
+      .map((a) => ({ key: a.key.trim(), value: a.value.trim() }))
+      .filter((a) => a.key !== '' && a.value !== '');
+
+    await supabase.from('product_attributes').delete().eq('product_id', productId);
+    if (cleanAttributes.length > 0) {
+      const { error: attrError } = await supabase
+        .from('product_attributes')
+        .insert(cleanAttributes.map((a) => ({ product_id: productId, key: a.key, value: a.value })));
+      if (attrError) {
+        setSaving(false);
+        setError(attrError.message);
+        return;
+      }
+    }
 
     setSaving(false);
-    if (saveError) {
-      setError(saveError.message);
-      return;
-    }
     setForm(null);
     await load();
+  };
+
+  const openEditForm = async (p: Product) => {
+    const { data: attrRows } = await supabase
+      .from('product_attributes')
+      .select('key, value')
+      .eq('product_id', p.id)
+      .order('key');
+    setForm({
+      id: p.id,
+      name: p.name,
+      category: p.category ?? '',
+      price: String(p.price),
+      sale_price: p.sale_price != null ? String(p.sale_price) : '',
+      sku: p.sku ?? '',
+      attributes: (attrRows ?? []).map((a) => ({ key: a.key, value: a.value })),
+    });
   };
 
   const handleDelete = async (id: string) => {
@@ -154,19 +211,7 @@ export default function Products() {
                   {canManage && (
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() =>
-                            setForm({
-                              id: p.id,
-                              name: p.name,
-                              category: p.category ?? '',
-                              price: String(p.price),
-                              sale_price: p.sale_price != null ? String(p.sale_price) : '',
-                              sku: p.sku ?? '',
-                            })
-                          }
-                          className="text-slate-500 hover:text-slate-300 p-1"
-                        >
+                        <button onClick={() => openEditForm(p)} className="text-slate-500 hover:text-slate-300 p-1">
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
                         <button onClick={() => handleDelete(p.id)} className="text-slate-500 hover:text-red-400 p-1">
@@ -221,6 +266,50 @@ export default function Products() {
                 placeholder="SKU"
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
               />
+
+              <div>
+                <p className="text-xs text-slate-500 mb-2">
+                  Attributes (brand, size, color, edition…) — lets shoppers filter by them in search.
+                </p>
+                <div className="space-y-2">
+                  {form.attributes.map((attr, i) => (
+                    <div key={i} className="flex gap-2">
+                      <input
+                        value={attr.key}
+                        onChange={(e) => {
+                          const attributes = [...form.attributes];
+                          attributes[i] = { ...attributes[i], key: e.target.value };
+                          setForm({ ...form, attributes });
+                        }}
+                        placeholder="key (e.g. brand)"
+                        className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                      />
+                      <input
+                        value={attr.value}
+                        onChange={(e) => {
+                          const attributes = [...form.attributes];
+                          attributes[i] = { ...attributes[i], value: e.target.value };
+                          setForm({ ...form, attributes });
+                        }}
+                        placeholder="value (e.g. Nike)"
+                        className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                      />
+                      <button
+                        onClick={() => setForm({ ...form, attributes: form.attributes.filter((_, j) => j !== i) })}
+                        className="text-slate-600 hover:text-red-400 p-1"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setForm({ ...form, attributes: [...form.attributes, { key: '', value: '' }] })}
+                  className="mt-2 text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" /> Add attribute
+                </button>
+              </div>
             </div>
 
             {error && <p className="text-xs text-red-400 mt-3">{error}</p>}

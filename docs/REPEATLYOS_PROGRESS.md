@@ -759,16 +759,60 @@
   - **This completes Phase 8's SaaS-entitlements core.** Structured
     product search (scoped into this same phase) is still unbuilt.
 
+## Phase 8 — Structured/Faceted Product Search (part 1)
+
+- `20260910000020_product_attributes.sql`: `product_attributes`
+  (`product_id`, `key`, `value`, one row per key per product — free-form
+  rather than fixed columns, since different business types need
+  different facets, same reasoning as `business_types.default_modules`).
+  - Read RLS deliberately just re-checks `exists(select 1 from products
+    where id = product_id)` rather than re-deriving the member-or-public
+    visibility rule a second time — that subquery is itself subject to
+    the calling role's own RLS on `products` (`products_member_read`),
+    so it automatically inherits whatever that policy currently allows,
+    including the Phase 6 fix for the parent-business-status check,
+    instead of a second copy of that logic silently drifting out of
+    sync. Write RLS requires `has_business_role` (owner/manager) on the
+    product's own business.
+- `src/pages/business/Products.tsx`: the add/edit product form now has a
+  free-form key/value attribute editor (add/remove rows); saved by
+  deleting and re-inserting the product's `product_attributes` rows
+  (simplest correct approach at this scale — a product has at most a
+  handful of attributes).
+- `src/pages/marketplace/Search.tsx`: facet dropdowns are now populated
+  from the distinct `product_attributes` keys/values actually present in
+  that city's publicly-visible products (capped at 4 facets), not a
+  hardcoded brand/size/color list. Selecting facets joins
+  `product_attributes` into the product query once per selected facet
+  (aliased `attr_0`, `attr_1`, … so multiple key/value filters can
+  co-exist in one PostgREST embedded-resource query). A facet-only browse
+  (no text query) no longer also runs a matches-everything service
+  search, since facets are product-only.
+- `npm run build` passes; no new lint issues beyond the existing
+  codebase-wide `set-state-in-effect` pattern (present in the original
+  `Search.tsx` before this change too).
+- **Not yet live-verified** — pending the user applying
+  `20260910000020_product_attributes.sql`. Planned verification: a
+  merchant tags a product with brand/size/color, confirm those facets
+  appear publicly and filtering narrows results correctly; confirm a
+  product on a non-visible business's attributes are NOT publicly
+  readable; confirm another business's owner cannot write attributes onto
+  a product they don't own; then clean up.
+- Deliberately still not built: the optional natural-language query layer
+  (LLM extracts filters, applies them through this same faceted query) —
+  scoped in `docs/REPEATLYOS_MIGRATION_PLAN.md` as an explicitly optional
+  post-MVP addition, not blocking anything.
+
 ## In Progress
 
 - Phase 8's SaaS entitlements core is complete and live-verified.
-  Structured/faceted product search (scoped, not started) is next.
+  Faceted product search is built, pending the user running the new
+  migration before live verification.
 
 ## Next
 
-- Build the structured/faceted product search scoped into Phase 8/9
-  (`product_attributes` table, facet filters in `Search.tsx`, optional
-  NL-query layer).
+- Live-verify faceted product search once the user runs
+  `20260910000020_product_attributes.sql`.
 - Phase 9 (hardening — tenant-isolation/authz regression tests, the
   previously-flagged rate-limiting/CAPTCHA gap on public marketplace
   insert paths) and Phase 10 (production prep).
