@@ -11,13 +11,21 @@
 -- (marketplace_enabled) stays off until Phase 6 actually builds it.
 update public.cities set active = true where slug = 'batroun';
 
+-- Loop variable is prefixed `v_` deliberately: `language plpgsql` bodies are
+-- only checked for basic syntax at CREATE FUNCTION time, not for column/
+-- variable ambiguity — that's only resolved when the function actually
+-- executes. Confirmed live: naming the variable `module_key` (matching the
+-- `business_modules.module_key` column) compiled fine but failed at
+-- insert-time with "column reference \"module_key\" is ambiguous", since
+-- nothing caught it until a real INSERT on `businesses` actually fired this
+-- trigger.
 create or replace function public.copy_default_modules()
 returns trigger
 language plpgsql
 security definer set search_path = public
 as $$
 declare
-  module_key text;
+  v_module_key text;
   default_keys text[];
 begin
   if new.business_type_key is null then
@@ -32,9 +40,9 @@ begin
     return new;
   end if;
 
-  foreach module_key in array default_keys loop
+  foreach v_module_key in array default_keys loop
     insert into public.business_modules (business_id, module_key, enabled)
-    values (new.id, module_key, true)
+    values (new.id, v_module_key, true)
     on conflict (business_id, module_key) do nothing;
   end loop;
 
