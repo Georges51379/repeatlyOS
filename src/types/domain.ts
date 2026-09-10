@@ -173,6 +173,10 @@ export interface Booking {
   end_time: string;
   status: BookingStatus;
   notes: string | null;
+  /** Guest booking contact info (Phase 6 marketplace) — set when
+   * customer_id is null. */
+  customer_name: string | null;
+  customer_phone: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -262,6 +266,11 @@ export interface Order {
   delivery_address: string | null;
   total_amount: number;
   notes: string | null;
+  /** Guest checkout contact info (Phase 6 marketplace) — set when
+   * customer_id is null, i.e. the order came from an unauthenticated
+   * marketplace shopper rather than a merchant-side customer record. */
+  customer_name: string | null;
+  customer_phone: string | null;
   created_at: string;
   updated_at: string;
 }

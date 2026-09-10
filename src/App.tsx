@@ -19,6 +19,14 @@ import BusinessAnalytics from './pages/business/Analytics';
 import BusinessPayments from './pages/business/Payments';
 import BusinessMemberships from './pages/business/Memberships';
 import BusinessSettings from './pages/business/BusinessSettings';
+import { MarketplaceCartProvider } from './context/MarketplaceCartContext';
+import MarketplaceLayout from './components/MarketplaceLayout';
+import CityHome from './pages/marketplace/CityHome';
+import MarketplaceSearch from './pages/marketplace/Search';
+import BusinessStorefront from './pages/marketplace/BusinessStorefront';
+import ProductDetail from './pages/marketplace/ProductDetail';
+import ServiceDetail from './pages/marketplace/ServiceDetail';
+import MarketplaceCart from './pages/marketplace/Cart';
 import LandingPage from './pages/LandingPage';
 import BusinessPublicPage from './pages/BusinessPublicPage';
 import DashboardLayout from './components/DashboardLayout';
@@ -156,6 +164,25 @@ export default function App() {
             <Route path="partial-payments" element={<PartialPayments />} />
             <Route path="enterprise" element={<Enterprise />} />
           </Route>
+
+          {/* Phase 6 — public city marketplace. Deliberately its own layout
+              (MarketplaceLayout), no auth required — see master-prompt §32. */}
+          <Route
+            path="/:citySlug"
+            element={
+              <MarketplaceCartProvider>
+                <MarketplaceLayout />
+              </MarketplaceCartProvider>
+            }
+          >
+            <Route index element={<CityHome />} />
+            <Route path="search" element={<MarketplaceSearch />} />
+            <Route path="cart" element={<MarketplaceCart />} />
+            <Route path="business/:businessSlug" element={<BusinessStorefront />} />
+            <Route path="business/:businessSlug/product/:productId" element={<ProductDetail />} />
+            <Route path="business/:businessSlug/service/:serviceId" element={<ServiceDetail />} />
+          </Route>
+
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>

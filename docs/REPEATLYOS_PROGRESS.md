@@ -518,6 +518,50 @@
   - **This closes out Phase 4's initial domain list** (Products, Inventory,
     Orders) — all live-verified against the real project.
 
+- **Phase 6 — City Marketplace (2026-09-10):** the public consumer-facing
+  side of the platform, built as its own layout (master-prompt §32: never
+  mix admin UI and marketplace UI) with no auth required.
+  - **Real architectural gap addressed first, not discovered later**:
+    before this phase, `orders`/`bookings` INSERT was gated entirely by
+    `orders.manage`/`bookings.manage` — an anonymous shopper had no path to
+    place an order or book a service at all. Fixed with guest checkout, not
+    a consumer account system (matches the Lebanon-specific cash/WhatsApp-
+    first framing and "don't overbuild"): `orders`/`bookings` gained
+    `customer_name`/`customer_phone` columns, and narrowly-scoped
+    ADDITIONAL permissive RLS policies (not modifying anything already
+    verified in Phases 1-4) allow public INSERT only when the target
+    business is `active` and `marketplace_visible`.
+  - `services` gained the same public-read clause `products`/`businesses`
+    already had (products needed it in Phase 4; nothing needed it for
+    services until now).
+  - `product_stock_status()`: a `security definer` function returning only
+    a coarse status (`in_stock`/`low_stock`/`out_of_stock`/`not_tracked`),
+    never the real quantity — `inventory_items` has no public read policy
+    at all, per master-prompt §15 ("never expose exact inventory
+    quantities"). The function independently re-verifies the product is
+    actually public rather than trusting the caller.
+  - `supabase/migrations/20260910000014_marketplace_public_access.sql`
+    covers all of the above.
+  - Pages: `CityHome` (business listing + category chips + search box),
+    `Search` (real server-side ILIKE queries across products/services
+    scoped to the city — explicitly not client-side filtering, per
+    master-prompt §17), `BusinessStorefront`, `ProductDetail` (stock
+    status badge, add to cart), `ServiceDetail` (guest booking form),
+    `Cart` (guest checkout → creates a real order + order_items).
+  - `MarketplaceCartContext`: pure client-side, localStorage-persisted, one
+    merchant per cart (master-prompt §18) — no server-side cart table,
+    since a cart is a draft and only the final order needs to be permanent.
+  - **Deliberate MVP gap, flagged not hidden**: no rate limiting/CAPTCHA on
+    the new public insert paths — a bad actor could spam orders/bookings
+    at any marketplace-visible business today. Acceptable for an initial
+    single-city launch; must be revisited in Phase 9 hardening.
+  - **Not yet verified against the live project** — needs the new
+    migration run first. Plan: verify guest order/booking creation works,
+    that a marketplace-invisible business's products/services genuinely
+    stay hidden, that `product_stock_status` never leaks the raw quantity,
+    and that the existing merchant-side dashboard behavior (Phases 1-4) is
+    completely unaffected by these additive policies.
+
 ## In Progress
 
 - Nothing actively in progress; paused after Phase 1 pending the user
