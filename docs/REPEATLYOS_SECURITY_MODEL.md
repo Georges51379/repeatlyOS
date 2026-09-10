@@ -103,6 +103,15 @@ ordering at all. Every statement in that migration is idempotent
 (`create or replace`, `if not exists`, `drop trigger if exists` before
 `create trigger`), so re-running the whole corrected file is safe.
 
+**Second bug found during live verification (same day):** the functions
+originally used `encode(..., 'base64')`, and Postgres's base64 `encode()`
+line-wraps every 76 characters — embedding raw newlines in the ciphertext
+string. That's harmless stored inside Postgres, but broke naive JSON
+construction when testing the round trip over REST. Switched to `hex`
+encoding (longer, but only ever `[0-9a-f]`, so it can never contain
+whitespace or anything else that needs escaping). Also fixed in place in the
+same migration file for the same reason as above — re-run it once more.
+
 This is the concrete template to reuse for every future genuinely-sensitive
 field (customer phone/address, payment references, etc. in Phase 3/4):
 ciphertext column + auto-encrypt trigger + one Edge Function per read path

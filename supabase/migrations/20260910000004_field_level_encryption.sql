@@ -51,6 +51,12 @@ $$;
 -- and doesn't fall back to the session's ambient default. Calls are also
 -- explicitly schema-qualified (`extensions.pgp_sym_*`) so this doesn't
 -- depend on search_path ordering at all.
+-- `hex`, not `base64`: Postgres's base64 encode() line-wraps every 76
+-- characters (embeds raw newlines in the output) — fine inside the
+-- database, but fragile the moment that value is transported as a JSON
+-- string (confirmed while testing: it broke naive JSON construction). hex
+-- is longer but never contains anything but [0-9a-f], so it round-trips
+-- through JSON/REST with zero ambiguity.
 create or replace function public.encrypt_pii(plaintext text)
 returns text
 language sql
@@ -58,7 +64,7 @@ stable
 security definer set search_path = public, extensions
 as $$
   select case when plaintext is null then null
-    else encode(extensions.pgp_sym_encrypt(plaintext, public.pii_key()), 'base64')
+    else encode(extensions.pgp_sym_encrypt(plaintext, public.pii_key()), 'hex')
   end;
 $$;
 
@@ -69,7 +75,7 @@ stable
 security definer set search_path = public, extensions
 as $$
   select case when ciphertext is null then null
-    else extensions.pgp_sym_decrypt(decode(ciphertext, 'base64'), public.pii_key())
+    else extensions.pgp_sym_decrypt(decode(ciphertext, 'hex'), public.pii_key())
   end;
 $$;
 
@@ -80,7 +86,7 @@ grant execute on function public.encrypt_pii(text) to service_role;
 grant execute on function public.decrypt_pii(text) to service_role;
 
 comment on column public.business_memberships.invited_email is
-  'Always ciphertext at rest (base64, pgp_sym) — see encrypt_invited_email_trigger below. Read via decrypt_pii() (service_role-only, see supabase/functions/decrypt-invite-email). Never store or compare plaintext here.';
+  'Always ciphertext at rest (hex-encoded pgp_sym) — see encrypt_invited_email_trigger below. Read via decrypt_pii() (service_role-only, see supabase/functions/decrypt-invite-email). Never store or compare plaintext here.';
 
 -- Transparent encryption on write: an owner/manager inserting a staff
 -- invitation still just sends a plain email address like any normal form
