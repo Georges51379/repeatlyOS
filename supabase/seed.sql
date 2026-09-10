@@ -26,12 +26,13 @@ insert into public.business_types (key, label, default_modules) values
 on conflict (key) do nothing;
 
 -- Batroun is the first launch city (master-prompt §51) — a config row, not a
--- hardcoded route. Left inactive/marketplace-disabled here on purpose: flip
--- `active`/`marketplace_enabled` to true once Phase 6 (city marketplace) is
--- ready to actually serve public traffic for it.
+-- hardcoded route. `active = true` so merchants can register there starting
+-- Phase 2; `marketplace_enabled` stays false until Phase 6 (city
+-- marketplace) is ready to actually serve public consumer traffic for it —
+-- these are deliberately separate flags (master-prompt §8, §54).
 insert into public.cities (name, slug, display_name, country, region, active, marketplace_enabled, description)
 values (
-  'Batroun', 'batroun', 'Batroun', 'Lebanon', 'North Lebanon', false, false,
+  'Batroun', 'batroun', 'Batroun', 'Lebanon', 'North Lebanon', true, false,
   'Buy Batroun — powered by RepeatlyOS.'
 )
 on conflict (slug) do nothing;

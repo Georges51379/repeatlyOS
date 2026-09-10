@@ -22,7 +22,7 @@ export default function Login() {
       setError(signInError);
       return;
     }
-    navigate('/dashboard');
+    navigate('/app');
   };
 
   const handlePasskey = async () => {
@@ -38,7 +38,7 @@ export default function Login() {
       setError(passkeyError);
       return;
     }
-    navigate('/dashboard');
+    navigate('/app');
   };
 
   return (

@@ -155,6 +155,39 @@
     person has an account" flow — needs to become nullable when the real
     staff-invite UI is built.
 
+- **Phase 2 — Merchant Onboarding (initial implementation, 2026-09-10):**
+  - `supabase/migrations/20260910000005_phase2_onboarding_foundations.sql`:
+    flips Batroun's `active` to `true` (separate from `marketplace_enabled`,
+    which stays off until Phase 6 — see master-prompt §8/§54) so it's
+    selectable during registration; adds a trigger that copies a business
+    type's `default_modules` into `business_modules` automatically when a
+    business is created.
+  - `src/pages/onboarding/Onboarding.tsx`: 3-step wizard (city → business
+    type → details) that inserts a real `businesses` row with
+    `status: 'pending_approval'`. Friendly error on slug collision (Postgres
+    23505) instead of a raw error.
+  - `src/pages/app/AppHome.tsx`: real authenticated landing page — lists the
+    user's businesses (from `AuthContext.memberships`, driven by real RLS-
+    protected data, not `DemoContext`), status badges, and a module toggle
+    panel (owner-only, enforced by both UI gating and the underlying
+    `modules_owner_write` RLS policy).
+  - `src/components/RequireAuth.tsx`: route guard, applied to
+    `/onboarding`, `/app`, and (now consistently) `/account/security`.
+  - `Login.tsx` now navigates to `/app` after sign-in instead of the old
+    demo `/dashboard` — the real auth flow no longer dumps a user into the
+    fake single-tenant demo. The demo dashboard itself is untouched and
+    still reachable directly by URL (Phase 3 migrates it for real).
+  - Fixed one lint regression caught before committing (derived `slug`
+    state via a `useEffect`, the same anti-pattern already flagged
+    elsewhere in the codebase — refactored to compute it inline instead).
+  - **Not yet verified against the live project** — needs the user to run
+    the new migration first (business_modules auto-copy + Batroun
+    `active=true`), then the plan is to verify the same way Phase 1 was:
+    real REST calls simulating the wizard (create a business, confirm
+    `business_modules` rows were auto-created matching the business type's
+    defaults, confirm status defaults correctly, confirm a non-owner can't
+    toggle modules).
+
 ## In Progress
 
 - Nothing actively in progress; paused after Phase 1 pending the user

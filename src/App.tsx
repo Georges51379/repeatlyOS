@@ -4,6 +4,9 @@ import { AuthProvider } from './context/AuthContext';
 import Login from './pages/auth/Login';
 import Signup from './pages/auth/Signup';
 import AccountSecurity from './pages/auth/AccountSecurity';
+import RequireAuth from './components/RequireAuth';
+import Onboarding from './pages/onboarding/Onboarding';
+import AppHome from './pages/app/AppHome';
 import LandingPage from './pages/LandingPage';
 import BusinessPublicPage from './pages/BusinessPublicPage';
 import DashboardLayout from './components/DashboardLayout';
@@ -55,7 +58,30 @@ export default function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
-          <Route path="/account/security" element={<AccountSecurity />} />
+          <Route
+            path="/account/security"
+            element={
+              <RequireAuth>
+                <AccountSecurity />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/onboarding"
+            element={
+              <RequireAuth>
+                <Onboarding />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/app"
+            element={
+              <RequireAuth>
+                <AppHome />
+              </RequireAuth>
+            }
+          />
           <Route path="/business/elite-carwash" element={<BusinessPublicPage />} />
           <Route path="/demo/setup" element={<DemoSetup />} />
           <Route path="/demo/pitch" element={<PitchPage />} />
