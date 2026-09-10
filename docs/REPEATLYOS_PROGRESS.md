@@ -586,15 +586,26 @@
        the row back at all, since the client already knows every value it
        inserted. `ServiceDetail.tsx`'s booking insert was already written
        without `.select()`, so it was unaffected.
-  - **Not yet fully re-verified against the live project** — needs both
-    new fix migrations run; the underlying guest-order and guest-booking
-    creation paths (using the corrected approach) were already confirmed
-    working live during this same testing round, and the hidden-business
-    rejection was confirmed too (`42501`, the correct RLS violation code,
-    surfaced as HTTP 401 rather than 403 — a cosmetic gateway detail, not
-    a security gap). Still to verify after the fixes: the corrected
-    `products_member_read` policy, and that existing merchant-side
-    behavior (Phases 1-4) remains completely unaffected.
+  - **Fully re-verified live after both fixes** (2026-09-10) — every
+    scenario now passes:
+    - The hidden business's product is now genuinely invisible to `anon`
+      (was leaking before Fix 1).
+    - A guest can now add `order_items` to their own just-created order
+      (was failing before Fix 2) — confirmed both via the guest's own
+      session and independently via `service_role`.
+    - `product_stock_status()` verified across all four states
+      (`not_tracked` → `out_of_stock` → `low_stock` → `in_stock`, driven by
+      real inventory movements) — and confirmed `anon` still cannot read
+      the raw `inventory_items` row directly at all (empty result), so the
+      status function is the only way stock info reaches the public, never
+      the real number.
+    - **Full-loop integration check**: the merchant's own dashboard view
+      (`orders`/`bookings` read as the business owner) correctly shows the
+      guest-placed orders and the guest booking, contact info intact —
+      concrete proof the marketplace and merchant sides are properly
+      connected, matching master-prompt §53's "what success looks like."
+    - All test data (2 businesses, 1 auth user) deleted afterward.
+  - **This completes Phase 6.**
 
 ## In Progress
 
