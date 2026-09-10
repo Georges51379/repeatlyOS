@@ -416,8 +416,18 @@
     Phase 6 without building it yet); write gated by `products.manage`.
   - `pages/business/Products.tsx`: real CRUD UI with price/sale price/SKU.
   - Nav item + route added, module-gated by the existing `products` key.
-  - **Not yet verified against the live project** — needs the new
-    migration run first.
+  - **Verified live end-to-end** (2026-09-10) — no bugs found:
+    - Cross-tenant isolation held for a non-marketplace-visible product
+      (empty reads for both a different business owner AND a completely
+      unauthenticated anon session, blocked writes).
+    - The public marketplace-visible clause verified for real: after
+      setting `marketplace_visible = true`, a plain unauthenticated
+      session (no login at all) could read the product — the first live
+      proof this project has a working public-read path, a preview of
+      Phase 6.
+    - Staff permission gating: read succeeded with zero permissions, write
+      was `403` until `products.manage` was granted, then succeeded.
+    - All test data (1 business, 3 auth users) deleted afterward.
 
 ## In Progress
 
