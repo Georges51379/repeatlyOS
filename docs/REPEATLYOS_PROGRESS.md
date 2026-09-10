@@ -180,13 +180,27 @@
   - Fixed one lint regression caught before committing (derived `slug`
     state via a `useEffect`, the same anti-pattern already flagged
     elsewhere in the codebase — refactored to compute it inline instead).
-  - **Not yet verified against the live project** — needs the user to run
-    the new migration first (business_modules auto-copy + Batroun
-    `active=true`), then the plan is to verify the same way Phase 1 was:
-    real REST calls simulating the wizard (create a business, confirm
-    `business_modules` rows were auto-created matching the business type's
-    defaults, confirm status defaults correctly, confirm a non-owner can't
-    toggle modules).
+  - **Verified live end-to-end** (2026-09-10), after finding and fixing one
+    more real bug: the trigger's plpgsql loop variable was named
+    `module_key`, colliding with the `business_modules.module_key` column —
+    compiled fine (plpgsql bodies aren't validated for this until they
+    actually run) but failed at insert-time with "column reference ...
+    ambiguous". The failed insert rolled back completely (confirmed no
+    orphaned rows), fixed by renaming to `v_module_key`, re-run, then fully
+    verified via real REST calls simulating the wizard:
+    - Batroun now appears via a plain anon session (no user) — confirms
+      `active=true` took effect and is genuinely public, not just
+      admin-visible.
+    - Created a `barber`-type business exactly as the wizard would; the 5
+      expected default modules (`analytics`, `bookings`, `customers`,
+      `payments`, `staff`) were auto-created, all `enabled: true`.
+    - A `manager`-role member could read `business_modules` but a PATCH
+      attempt to disable one affected 0 rows — independently confirmed via
+      `service_role` that the value was genuinely untouched.
+    - The owner successfully disabled a default module and enabled a new
+      one via upsert (the same call path `AppHome.tsx`'s toggle UI uses).
+    - All test data (business, memberships, modules, 2 auth users) deleted
+      afterward.
 
 ## In Progress
 
