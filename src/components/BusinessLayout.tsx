@@ -1,10 +1,13 @@
 import { Link, NavLink, Navigate, Outlet } from 'react-router-dom';
-import { Zap, Users, Settings as SettingsIcon, ArrowLeft } from 'lucide-react';
+import { Zap, Users, KanbanSquare, Settings as SettingsIcon, ArrowLeft } from 'lucide-react';
 import { useCurrentBusiness } from '../hooks/useCurrentBusiness';
 import { useEnabledModules } from '../hooks/useEnabledModules';
 import { useAuth } from '../context/AuthContext';
 
-const NAV_ITEMS = [{ key: 'customers', label: 'Customers', icon: Users, path: 'customers' }];
+const NAV_ITEMS = [
+  { key: 'customers', label: 'Customers', icon: Users, path: 'customers' },
+  { key: 'tasks', label: 'Tasks', icon: KanbanSquare, path: 'tasks' },
+];
 
 export default function BusinessLayout() {
   const { loading: authLoading } = useAuth();

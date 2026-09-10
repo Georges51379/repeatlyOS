@@ -132,6 +132,21 @@ export interface Customer {
   updated_at: string;
 }
 
+export type BoardColumn = 'todo' | 'in_progress' | 'completed' | 'issue';
+
+export interface Task {
+  id: string;
+  business_id: string;
+  customer_id: string | null;
+  title: string;
+  notes: string | null;
+  assigned_to: string | null;
+  board_column: BoardColumn;
+  due_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AuditLogEntry {
   id: string;
   actor_user_id: string | null;

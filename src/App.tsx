@@ -9,6 +9,7 @@ import Onboarding from './pages/onboarding/Onboarding';
 import AppHome from './pages/app/AppHome';
 import BusinessLayout from './components/BusinessLayout';
 import RealCustomers from './pages/business/Customers';
+import RealTasks from './pages/business/Tasks';
 import BusinessSettings from './pages/business/BusinessSettings';
 import LandingPage from './pages/LandingPage';
 import BusinessPublicPage from './pages/BusinessPublicPage';
@@ -95,6 +96,7 @@ export default function App() {
           >
             <Route index element={<Navigate to="customers" replace />} />
             <Route path="customers" element={<RealCustomers />} />
+            <Route path="tasks" element={<RealTasks />} />
             <Route path="settings" element={<BusinessSettings />} />
           </Route>
           <Route path="/business/elite-carwash" element={<BusinessPublicPage />} />

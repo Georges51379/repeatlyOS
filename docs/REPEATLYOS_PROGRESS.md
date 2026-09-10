@@ -264,6 +264,28 @@
       functions, not just compiles.
     - All test data (2 businesses, 3 auth users) deleted afterward.
 
+- **Phase 3 — second real domain: Tasks (2026-09-10):**
+  - `supabase/migrations/20260910000007_tasks.sql`: real `tasks` table
+    (business-scoped Kanban board), with `customer_id` optionally linking
+    to a real `customers` row (nullable, `on delete set null`) — a genuine
+    improvement over the demo's freeform customer-name string. Unlike
+    Customers, write is NOT permission-gated: the master prompt's
+    permission vocabulary (§7) has no `tasks.*` entry, and a task board is
+    inherently whole-team collaborative — any active member can read/write,
+    matching the original demo's behavior.
+  - `pages/business/Tasks.tsx`: real 4-column board (To Do / In Progress /
+    Completed / Issue), add/move/remove, no drag-and-drop library — a
+    per-card column-select dropdown instead, avoiding a new dependency for
+    MVP.
+  - Nav item added to `BusinessLayout`, gated by the `tasks` module flag
+    like Customers is — note Batroun's seeded `barber` business type
+    doesnt include `tasks` in its default modules, so a fresh barber-type
+    business won't show this nav item until the owner enables it from
+    Settings (expected, not a bug — verify by enabling it manually during
+    testing).
+  - **Not yet verified against the live project** — needs the new
+    migration run first.
+
 ## In Progress
 
 - Nothing actively in progress; paused after Phase 1 pending the user
