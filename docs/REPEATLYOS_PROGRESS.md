@@ -654,25 +654,53 @@
   codebase's existing `react-hooks/set-state-in-effect` pattern, already
   present in every other async-loading page (Search.tsx, Reminders.tsx,
   Subscriptions.tsx, Tasks.tsx, etc.).
-- **Not yet live-verified** — pending the user applying
-  `20260910000017_admin_foundations.sql` in the Supabase SQL editor.
-  Planned verification: create a test platform admin and a test city admin
-  via `service_role`, confirm a city admin can manage only their own
-  city's businesses (not another city's), confirm approve/suspend writes
-  the expected `audit_logs` row, confirm a non-admin user gets empty
-  results from `platform_admins`/`city_admins` (i.e. sees no admin UI and
-  cannot act even if they navigated to the URL directly), then delete all
-  test data.
+- **Live-verified end to end (2026-09-10)**, migrations
+  `20260910000017_admin_foundations.sql` and
+  `20260910000018_restrict_business_status_change.sql` both applied. Test
+  setup: 2 cities (Batroun + a temporary second test city), 3 auth users
+  (platform admin, city admin scoped to Batroun, plain non-admin owner),
+  2 businesses (one per city, both `pending_approval`).
+  - `handle_new_user` correctly backfills `profiles.email` for brand-new
+    signups, not just existing rows.
+  - City admin approved their own city's business (succeeded) and was
+    silently blocked approving the other city's business (empty result,
+    row unchanged) — confirmed via `service_role` that its status was
+    untouched. Correct city-scoped isolation.
+  - `audit_logs` got the expected row for the successful change: actor =
+    the city admin, `metadata: {from: pending_approval, to: active}`.
+  - Platform admin approved a business in a city they hold no
+    `city_admins` row for (succeeded, as expected — platform admin passes
+    every `is_city_admin()` check), and could look up a user by
+    `profiles.email` for the grant-city-admin flow.
+  - A plain non-admin user's `platform_admins`/`city_admins` reads both
+    return empty (the exact self-check `useAdminRoles` relies on).
+  - **Found and fixed a real gap**: the plain business owner was able to
+    directly PATCH their own business's `status` from `active` to
+    `suspended` themselves — the Phase 1 `businesses` UPDATE policy
+    allowed owner/manager to change any column, `status` included, so an
+    owner could self-approve or self-reactivate and bypass the entire
+    admin workflow this phase adds. Fixed in
+    `20260910000018_restrict_business_status_change.sql` with a BEFORE
+    UPDATE trigger comparing OLD/NEW status and requiring
+    `is_city_admin()` for any change — a plain RLS `WITH CHECK` subquery
+    was avoided given the same-statement old/new visibility subtleties
+    noted in earlier migrations.
+  - **Re-verified after the fix**: the same owner's self-status-change now
+    fails (`P0001`, "Only a city or platform admin may change a
+    business's status"), the same owner can still edit non-status fields
+    on their own business (e.g. `description`), and the city admin can
+    still change status normally.
+  - All test data (2 businesses, 2 admin-grant rows, 1 extra city, 3 auth
+    users, the audit log rows they generated) deleted afterward.
+  - **This completes Phase 7.**
 
 ## In Progress
 
-- Phase 7 admin UI is built and committed but not yet live-verified —
-  waiting on the user to run the new migration before testing against the
-  real Supabase project.
+- Nothing actively in progress. Phase 7 is complete and live-verified.
 
 ## Next
 
-- Once Phase 7 is verified: Phase 8 (SaaS entitlements/billing plans for
+- Phase 8 (SaaS entitlements/billing plans for
   RepeatlyOS itself, separate from a merchant's own customer
   subscriptions/packages per master-prompt §40), Phase 9 (hardening,
   including the previously-flagged rate-limiting/CAPTCHA gap on public
