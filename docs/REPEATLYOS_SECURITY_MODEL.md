@@ -83,11 +83,26 @@ genuinely encrypted at the column level — not just at the platform level:
   allowed to see this row, reusing the exact same `memberships_read` policy
   enforced everywhere else, not a re-implementation of that logic), and only
   if that succeeds does it call `decrypt_pii` via a service-role client to
-  return the plaintext. **Not deployed or verified yet** — deploying an Edge
-  Function requires either the Supabase CLI (`supabase functions deploy
+  return the plaintext. **Confirmed not yet deployed** (2026-09-10) — called
+  it live and got `404 {"code":"NOT_FOUND"}`, the expected response for an
+  undeployed function, not an error in the function itself. Deploying it
+  requires either the Supabase CLI (`supabase functions deploy
   decrypt-invite-email`) or the Dashboard's Edge Functions UI (paste the
   file directly), neither of which this assistant has access to. See
-  Migration Plan for deployment steps.
+  Migration Plan for deployment steps. Once deployed, re-test: everything
+  upstream of it (encryption, the trigger, the RLS-based authorization it
+  will lean on) is confirmed working, so a failure at that point would be
+  Edge-Function-specific (e.g. a missing/renamed env var).
+
+**Schema gap noticed while testing, to fix when the real staff-invite UI is
+built (Phase 3):** `business_memberships.user_id` is `not null`, which means
+today you can only attach an `invited_email` to a row that *already* has a
+real `user_id` — there's no way yet to invite someone purely by email
+before they have an account (the realistic staff-invite scenario). Testing
+worked around this by using an already-existing test user's id, but the
+real feature needs `user_id` to become nullable (with a follow-up step that
+fills it in once the invited person signs up and accepts), not something to
+carry forward as-is.
 
 **Bug found and fixed by the user actually running this migration
 (2026-09-10):** `pgp_sym_encrypt`/`pgp_sym_decrypt` failed with "function ...
@@ -122,9 +137,17 @@ by default. Every role — including `anon` and `authenticated` — has
 whatever `PUBLIC` has, regardless of what's separately revoked from them by
 name, so the original revokes were a no-op in practice. Fixed by adding
 `revoke all on function ... from public` for `pii_key`/`encrypt_pii`/
-`decrypt_pii` — fix written but **not yet re-verified live** at the time of
-this note; re-test after re-running the migration before trusting this is
-closed. This is a general lesson worth generalizing: **any function meant to be
+`decrypt_pii`. **Re-verified live (2026-09-10) after the user re-ran the
+migration**: `anon` now gets `401 {"code":"42501", "message":"permission
+denied for function decrypt_pii"}`; `service_role` still decrypts
+successfully. Also re-verified the full real path end-to-end: created a
+business, then — as its owner, via a completely normal RLS-protected REST
+insert with no special client code — inserted a `business_memberships` row
+with a **plaintext** `invited_email`; the row returned by that same insert
+already showed ciphertext (the `BEFORE INSERT` trigger fired before
+`RETURNING` was computed); confirmed via `service_role` that the value
+actually stored on disk matches, and that it decrypts back to the exact
+original plaintext. This is a general lesson worth generalizing: **any function meant to be
 service_role-only must explicitly `REVOKE ... FROM PUBLIC`, not just from
 the specific roles you're trying to block** — apply this to every future
 function with the same intent.

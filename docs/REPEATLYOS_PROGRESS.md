@@ -128,6 +128,33 @@
     isolation test already proved knowing another tenant's UUID grants no
     access.
 
+- **Field-level encryption fully verified live** (2026-09-10), after two
+  more real bugs found and fixed via testing (on top of the pgcrypto-schema
+  one from the previous round):
+  1. Base64 output embeds raw newlines (Postgres's `encode(...,'base64')`
+     line-wraps every 76 chars) — broke JSON transport. Switched to `hex`.
+  2. **Serious**: `anon` (no session) could call `decrypt_pii` directly and
+     get plaintext back with a 200 — the original `revoke ... from anon,
+     authenticated` never touched the separate `PUBLIC` grant Postgres
+     creates on every new function by default, which anon/authenticated
+     implicitly inherit regardless. Fixed by also revoking from `PUBLIC`.
+  Both fixed in place in the same (still-unshipped) migration file, and
+  **re-verified live after the fixes**: `anon` now gets `401 permission
+  denied`; `service_role` still decrypts correctly; and the full real path
+  — owner inserts a plaintext `invited_email` via a completely normal REST
+  call, no special client code — comes back as ciphertext (the trigger
+  fired before RETURNING), and that stored ciphertext decrypts back to the
+  exact original value. See `REPEATLYOS_SECURITY_MODEL.md` for the full
+  writeup of both bugs.
+  - **Still pending**: the `decrypt-invite-email` Edge Function itself is
+    confirmed **not deployed yet** (live call returned `404 NOT_FOUND`) —
+    needs the user to deploy it (dashboard or CLI); everything upstream of
+    it is confirmed working, so this is the last untested link.
+  - **Schema gap noted for Phase 3**: `business_memberships.user_id` is
+    `not null`, which blocks the realistic "invite by email before the
+    person has an account" flow — needs to become nullable when the real
+    staff-invite UI is built.
+
 ## In Progress
 
 - Nothing actively in progress; paused after Phase 1 pending the user
