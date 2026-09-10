@@ -59,6 +59,16 @@ those tables are designed, not something retrofitted onto `cities`/
 first place (they're either public marketplace configuration or membership
 metadata already protected by RLS).
 
+**Confirmed with the user (2026-09-10):** this scoped approach — platform
+encryption for everything, column-level encryption only for genuinely
+sensitive PII/financial fields once those tables exist — is the accepted
+policy, not an open question. No specific compliance mandate (PCI-DSS,
+HIPAA, etc.) is driving this; apply it as a general best practice when
+Customer/Payment/StaffMember tables are designed in Phase 3/4: identify
+which of their columns are sensitive-and-never-searched (encrypt those) vs.
+used for display, filtering, or joins (leave as plaintext, protected by RLS
+and platform encryption).
+
 ## Where tenant isolation is actually enforced
 
 **In Postgres Row Level Security policies**
