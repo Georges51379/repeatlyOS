@@ -1,5 +1,6 @@
 import { useCurrentBusiness } from '../../hooks/useCurrentBusiness';
 import ModulesPanel from '../../components/ModulesPanel';
+import PlanPanel from '../../components/PlanPanel';
 
 export default function BusinessSettings() {
   const { business, membership } = useCurrentBusiness();
@@ -9,6 +10,8 @@ export default function BusinessSettings() {
     <div className="max-w-2xl">
       <h1 className="text-white font-semibold text-lg mb-1">Settings</h1>
       <p className="text-slate-500 text-sm mb-6">{business.name}</p>
+
+      <PlanPanel businessId={business.id} />
 
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
         <h2 className="text-white font-medium text-sm mb-1">Modules</h2>

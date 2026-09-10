@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { ShieldCheck, Check, X, Plus } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAdminRoles } from '../../hooks/useAdminRoles';
-import type { Business, City } from '../../types/domain';
+import type { Business, BusinessSaasSubscription, City, SaasPlan } from '../../types/domain';
 
 interface Counts {
   cities: number;
@@ -32,6 +32,9 @@ export default function PlatformAdminDashboard() {
   const [counts, setCounts] = useState<Counts | null>(null);
   const [pending, setPending] = useState<Business[]>([]);
   const [cities, setCities] = useState<City[]>([]);
+  const [allBusinesses, setAllBusinesses] = useState<Business[]>([]);
+  const [plans, setPlans] = useState<SaasPlan[]>([]);
+  const [subscriptions, setSubscriptions] = useState<Record<string, BusinessSaasSubscription>>({});
   const [newCityName, setNewCityName] = useState('');
   const [newCitySlug, setNewCitySlug] = useState('');
   const [assignEmail, setAssignEmail] = useState('');
@@ -66,6 +69,19 @@ export default function PlatformAdminDashboard() {
 
     const { data: cityRows } = await supabase.from('cities').select('*').order('name');
     setCities((cityRows ?? []) as City[]);
+
+    const { data: businessRows } = await supabase.from('businesses').select('*').order('name');
+    setAllBusinesses((businessRows ?? []) as Business[]);
+
+    const { data: planRows } = await supabase.from('saas_plans').select('*').order('sort_order');
+    setPlans((planRows ?? []) as SaasPlan[]);
+
+    const { data: subRows } = await supabase.from('business_saas_subscriptions').select('*');
+    const subsByBusiness: Record<string, BusinessSaasSubscription> = {};
+    for (const s of (subRows ?? []) as BusinessSaasSubscription[]) {
+      subsByBusiness[s.business_id] = s;
+    }
+    setSubscriptions(subsByBusiness);
   }, []);
 
   useEffect(() => {
@@ -134,6 +150,16 @@ export default function PlatformAdminDashboard() {
     setAssignEmail('');
   };
 
+  const changePlan = async (businessId: string, planKey: string) => {
+    await supabase.from('business_saas_subscriptions').update({ plan_key: planKey }).eq('business_id', businessId);
+    await load();
+  };
+
+  const changeSubscriptionStatus = async (businessId: string, status: string) => {
+    await supabase.from('business_saas_subscriptions').update({ status }).eq('business_id', businessId);
+    await load();
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-10">
       <div className="max-w-3xl mx-auto">
@@ -160,8 +186,9 @@ export default function PlatformAdminDashboard() {
           </div>
         )}
         <p className="text-xs text-slate-600 mb-8">
-          MRR, trials, and churn aren't shown — no billing/subscription system exists yet (Phase 8). Showing
-          placeholder numbers here would be misleading.
+          MRR/churn aren't shown here — there's no payment gateway, so a plan is assigned manually below rather
+          than through real billing history. Showing a computed "revenue" number without real transactions behind
+          it would be misleading.
         </p>
 
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 mb-6">
@@ -237,6 +264,56 @@ export default function PlatformAdminDashboard() {
               <Plus className="w-4 h-4" />
             </button>
           </div>
+        </div>
+
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 mb-6">
+          <h2 className="text-white font-medium text-sm mb-3">Businesses &amp; plans</h2>
+          {allBusinesses.length === 0 ? (
+            <p className="text-slate-500 text-sm">No businesses yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {allBusinesses.map((b) => {
+                const sub = subscriptions[b.id];
+                return (
+                  <div
+                    key={b.id}
+                    className="flex flex-wrap items-center justify-between gap-2 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-white text-sm truncate">{b.name}</p>
+                      <p className="text-xs text-slate-500">{b.status}</p>
+                    </div>
+                    {sub && (
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={sub.plan_key}
+                          onChange={(e) => changePlan(b.id, e.target.value)}
+                          className="bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                        >
+                          {plans.map((p) => (
+                            <option key={p.key} value={p.key}>
+                              {p.name}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          value={sub.status}
+                          onChange={(e) => changeSubscriptionStatus(b.id, e.target.value)}
+                          className="bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                        >
+                          {['trialing', 'active', 'past_due', 'canceled'].map((s) => (
+                            <option key={s} value={s}>
+                              {s}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">

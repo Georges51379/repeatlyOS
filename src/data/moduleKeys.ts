@@ -1,9 +1,10 @@
 // Canonical module key vocabulary (master-prompt §23). A business's actual
 // module set lives in the `business_modules` table (business-id + key +
-// enabled) — this is just the fixed list of keys the toggle UI offers. Plan/
-// entitlement gating (which keys a business is even ALLOWED to enable) is
-// Phase 8 — not implemented yet, so today an owner can freely toggle any of
-// these.
+// enabled) — this is just the fixed list of keys the toggle UI offers. Which
+// of these a business may actually *enable* is gated server-side by its
+// plan (see `saas_plans.included_modules` /
+// `20260910000019_saas_entitlements.sql`, Phase 8) — disabling a module is
+// always allowed regardless of plan.
 export const MODULE_KEYS = [
   'products',
   'inventory',

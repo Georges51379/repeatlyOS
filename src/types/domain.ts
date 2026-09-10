@@ -294,6 +294,29 @@ export interface OrderItem {
   created_at: string;
 }
 
+export type SaasSubscriptionStatus = 'trialing' | 'active' | 'past_due' | 'canceled';
+
+export interface SaasPlan {
+  key: string;
+  name: string;
+  price_monthly_usd: number;
+  included_modules: string[];
+  max_branches: number | null;
+  is_default: boolean;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface BusinessSaasSubscription {
+  business_id: string;
+  plan_key: string;
+  status: SaasSubscriptionStatus;
+  started_at: string;
+  current_period_end: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AuditLogEntry {
   id: string;
   actor_user_id: string | null;

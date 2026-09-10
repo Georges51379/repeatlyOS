@@ -694,19 +694,74 @@
     users, the audit log rows they generated) deleted afterward.
   - **This completes Phase 7.**
 
+## Phase 8 — SaaS Entitlements (in progress)
+
+- `20260910000019_saas_entitlements.sql`: `saas_plans` (free/growth/pro,
+  each with `included_modules`, `price_monthly_usd`, `max_branches`) and
+  `business_saas_subscriptions` (one row per business: `plan_key`,
+  `status`, `current_period_end`). No payment gateway — a business's plan
+  is assigned by a platform admin, not self-serve checkout, matching the
+  actual MVP scope (§40 distinguishes this from a merchant's own customer
+  packages/subscriptions, which already exist as `customer_memberships`).
+  - The free plan's `included_modules` was deliberately set to cover
+    every module any seeded `business_types.default_modules` already
+    grants, so `copy_default_modules` (Phase 2) keeps working unchanged
+    for a brand-new business landing on the free plan.
+  - `enforce_module_plan_entitlement()` (a BEFORE INSERT/UPDATE trigger on
+    `business_modules`) is the actual enforcement point:
+    `data/moduleKeys.ts` has said since Phase 2 that "plan/entitlement
+    gating... is Phase 8 — not implemented yet"; this is that. Disabling
+    a module is always allowed; enabling one outside the plan raises a
+    Postgres exception, which `ModulesPanel.tsx` now surfaces directly to
+    the merchant instead of a generic error. Falls back to the default
+    plan's modules if a business has no subscription row yet, so it
+    doesn't depend on trigger-firing order against
+    `on_business_created_saas_subscription`.
+  - RLS: `saas_plans` is publicly readable (plain pricing info, same
+    precedent as `cities_read`'s public-readability for non-sensitive
+    platform data); `business_saas_subscriptions` is readable by the
+    business's own owner/manager or a platform admin, writable only by a
+    platform admin.
+- `src/components/PlanPanel.tsx` — shown at the top of
+  `BusinessSettings.tsx`: current plan name, price, included modules,
+  subscription status.
+- `src/pages/admin/PlatformAdminDashboard.tsx` — new "Businesses & plans"
+  section: every business with dropdowns to change its `plan_key` and
+  subscription `status`. Corrected the dashboard's earlier "no
+  billing/subscription system exists yet" note now that one does (though
+  still no real payment history to compute MRR from).
+- `npm run build` passes; no new lint issues beyond the existing
+  codebase-wide `set-state-in-effect` pattern.
+- **Not yet live-verified** — pending the user applying
+  `20260910000019_saas_entitlements.sql`. Planned verification: confirm a
+  fresh business lands on the free plan automatically, confirm enabling a
+  free-plan module succeeds while enabling a growth/pro-only module fails
+  with the expected message, confirm a platform admin changing a
+  business's plan immediately unlocks that module, confirm a non-owner/
+  non-admin cannot read another business's subscription, then clean up.
+- Scoped (not yet built): structured/faceted product search
+  (`product_attributes` + facet filters in `Search.tsx`) and an optional
+  natural-language query layer — see
+  `docs/REPEATLYOS_MIGRATION_PLAN.md`'s Phase 8/9 entries for the full
+  scope, added 2026-09-10 per user request.
+
 ## In Progress
 
-- Nothing actively in progress. Phase 7 is complete and live-verified.
+- Phase 8's SaaS entitlements core (plans, subscriptions, module-gating
+  enforcement) is built and committed, pending the user running the new
+  migration before live verification. Structured product search
+  (scoped, not started) is next.
 
 ## Next
 
-- Phase 8 (SaaS entitlements/billing plans for
-  RepeatlyOS itself, separate from a merchant's own customer
-  subscriptions/packages per master-prompt §40), Phase 9 (hardening,
-  including the previously-flagged rate-limiting/CAPTCHA gap on public
-  marketplace insert paths), and Phase 10 (production prep).
-  copying `business_types.default_modules` into `business_modules` at
-  creation, approval workflow).
+- Live-verify Phase 8's SaaS entitlements once the user runs
+  `20260910000019_saas_entitlements.sql`.
+- Build the structured/faceted product search scoped into Phase 8/9
+  (`product_attributes` table, facet filters in `Search.tsx`, optional
+  NL-query layer).
+- Phase 9 (hardening — tenant-isolation/authz regression tests, the
+  previously-flagged rate-limiting/CAPTCHA gap on public marketplace
+  insert paths) and Phase 10 (production prep).
 
 ## Known Issues
 

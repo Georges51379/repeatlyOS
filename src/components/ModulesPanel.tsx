@@ -12,23 +12,37 @@ export default function ModulesPanel({
 }) {
   const { enabled, loading, refresh } = useEnabledModules(businessId);
   const [saving, setSaving] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const toggle = async (key: string) => {
     if (!canEdit || saving) return;
     setSaving(key);
+    setError(null);
     const nowEnabled = !enabled.has(key);
-    const { error } = await supabase
+    const { error: upsertError } = await supabase
       .from('business_modules')
       .upsert({ business_id: businessId, module_key: key, enabled: nowEnabled }, { onConflict: 'business_id,module_key' });
     setSaving(null);
-    if (error) return;
+    if (upsertError) {
+      // Plan-entitlement gating (Phase 8) rejects this via a Postgres
+      // exception, whose message we surface directly rather than a
+      // generic "something went wrong".
+      setError(upsertError.message.replace(/^.*?:\s*/, ''));
+      return;
+    }
     await refresh();
   };
 
   if (loading) return <p className="text-xs text-slate-500 py-2">Loading modules…</p>;
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+    <div>
+      {error && (
+        <p className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2 mb-2">
+          {error}
+        </p>
+      )}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
       {MODULE_KEYS.map((key) => (
         <label
           key={key}
@@ -46,6 +60,7 @@ export default function ModulesPanel({
           {key}
         </label>
       ))}
+      </div>
     </div>
   );
 }
