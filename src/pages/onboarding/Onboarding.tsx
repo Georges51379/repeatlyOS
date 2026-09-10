@@ -40,7 +40,7 @@ export default function Onboarding() {
   useEffect(() => {
     (async () => {
       const [{ data: cityRows }, { data: typeRows }] = await Promise.all([
-        supabase.from('cities').select('*').order('name'),
+        supabase.from('cities').select('*').eq('active', true).order('name'),
         supabase.from('business_types').select('*').order('label'),
       ]);
       setCities((cityRows ?? []) as City[]);

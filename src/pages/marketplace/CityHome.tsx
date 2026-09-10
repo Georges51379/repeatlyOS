@@ -12,6 +12,7 @@ export default function CityHome() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [notFound, setNotFound] = useState(false);
+  const [notOpenYet, setNotOpenYet] = useState(false);
 
   useEffect(() => {
     if (!citySlug) return;
@@ -19,6 +20,11 @@ export default function CityHome() {
       const { data: cityRow } = await supabase.from('cities').select('*').eq('slug', citySlug).maybeSingle();
       if (!cityRow) {
         setNotFound(true);
+        setLoading(false);
+        return;
+      }
+      if (!(cityRow as City).marketplace_enabled) {
+        setNotOpenYet(true);
         setLoading(false);
         return;
       }
@@ -53,6 +59,9 @@ export default function CityHome() {
   if (loading) return null;
   if (notFound) {
     return <p className="text-slate-400 text-center py-20">This city marketplace doesn't exist.</p>;
+  }
+  if (notOpenYet) {
+    return <p className="text-slate-400 text-center py-20">This city's marketplace isn't open to the public yet.</p>;
   }
 
   return (
