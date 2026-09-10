@@ -251,6 +251,31 @@ export interface InventoryMovement {
   created_at: string;
 }
 
+export type OrderStatus = 'new' | 'confirmed' | 'preparing' | 'ready' | 'completed' | 'cancelled' | 'refunded';
+
+export interface Order {
+  id: string;
+  business_id: string;
+  customer_id: string | null;
+  status: OrderStatus;
+  delivery_method: string;
+  delivery_address: string | null;
+  total_amount: number;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrderItem {
+  id: string;
+  order_id: string;
+  product_id: string | null;
+  product_name: string;
+  unit_price: number;
+  quantity: number;
+  created_at: string;
+}
+
 export interface AuditLogEntry {
   id: string;
   actor_user_id: string | null;

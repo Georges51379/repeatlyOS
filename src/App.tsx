@@ -10,6 +10,7 @@ import AppHome from './pages/app/AppHome';
 import BusinessLayout from './components/BusinessLayout';
 import RealProducts from './pages/business/Products';
 import RealInventory from './pages/business/Inventory';
+import RealOrders from './pages/business/Orders';
 import RealCustomers from './pages/business/Customers';
 import RealTasks from './pages/business/Tasks';
 import BusinessServices from './pages/business/Services';
@@ -104,6 +105,7 @@ export default function App() {
             <Route index element={<Navigate to="customers" replace />} />
             <Route path="products" element={<RealProducts />} />
             <Route path="inventory" element={<RealInventory />} />
+            <Route path="orders" element={<RealOrders />} />
             <Route path="customers" element={<RealCustomers />} />
             <Route path="services" element={<BusinessServices />} />
             <Route path="bookings" element={<BusinessBookings />} />

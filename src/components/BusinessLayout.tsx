@@ -10,6 +10,7 @@ import {
   Package,
   ShoppingBag,
   Warehouse,
+  ShoppingCart,
   Settings as SettingsIcon,
   ArrowLeft,
 } from 'lucide-react';
@@ -20,6 +21,7 @@ import { useAuth } from '../context/AuthContext';
 const NAV_ITEMS = [
   { key: 'products', label: 'Products', icon: ShoppingBag, path: 'products' },
   { key: 'inventory', label: 'Inventory', icon: Warehouse, path: 'inventory' },
+  { key: 'orders', label: 'Orders', icon: ShoppingCart, path: 'orders' },
   { key: 'customers', label: 'Customers', icon: Users, path: 'customers' },
   { key: 'services', label: 'Services', icon: Wrench, path: 'services' },
   { key: 'bookings', label: 'Bookings', icon: CalendarClock, path: 'bookings' },

@@ -469,6 +469,34 @@
       required, staff blocked without it) both confirmed as usual.
     - All test data (1 business, 3 auth users) deleted afterward.
 
+- **Phase 4 — Orders, closing out the phase (2026-09-10):**
+  - `supabase/migrations/20260910000013_orders.sql`: `orders` +
+    `order_items`. `order_items` snapshots `product_name`/`unit_price` at
+    order time rather than only referencing `product_id` — per
+    master-prompt §27, historical order records must stay accurate even if
+    a product is later renamed, repriced, or deleted (`product_id` is
+    nullable with `on delete set null` for exactly that reason). Write
+    gated by `orders.manage`; `order_items` has no `business_id` of its
+    own, RLS checks tenant ownership via the parent order instead of
+    duplicating the column onto every line-item table.
+  - **Two deliberate scope decisions, called out rather than silently
+    made**: (1) "Cart" (master-prompt §18) is NOT built — it's a consumer-
+    marketplace concept and no consumer marketplace exists yet (Phase 6);
+    building cart UI with nothing to shop from would be fake scaffolding.
+    (2) Placing an order does NOT auto-decrement inventory — which status
+    transition should trigger that, how cancellation/refund should reverse
+    it, and what happens for untracked products are real product decisions
+    not guessed at here; stock adjustment stays a manual step via the
+    Inventory page for now.
+  - `pages/business/Orders.tsx`: build an order by adding products as line
+    items (from the real product catalog, defaulting to sale price when
+    set), computed total, status workflow (new → confirmed → preparing →
+    ready → completed, plus cancelled/refunded).
+  - Nav item + route added, module-gated by the existing `orders` key.
+  - **This closes out Phase 4's initial domain list** (Products, Inventory,
+    Orders) — not yet verified against the live project, needs the new
+    migration run first.
+
 ## In Progress
 
 - Nothing actively in progress; paused after Phase 1 pending the user
