@@ -57,6 +57,28 @@
     Migration Plan). Do not treat login/signup/RLS as confirmed-working until
     that's been checked against a real project.
 
+- **Passkey/WebAuthn login added** (2026-09-10): Supabase Auth's native beta
+  passkey feature wired in (`signInWithPasskey`/`registerPasskey`/
+  `passkey.list`/`passkey.delete` via `AuthContext`), `/login` leads with a
+  passkey button, `/account/security` manages registered passkeys. Cross-
+  device QR sign-in is native browser WebAuthn behavior, not custom code.
+  Verified against the actual installed `@supabase/supabase-js` source in
+  `node_modules` (this shipped after this assistant's training cutoff, so
+  doc summaries were cross-checked against real `.ts` source before writing
+  any code against it). Build passes. **Not verified against a live
+  project** — needs the Passkeys dashboard toggle + RP ID/origins configured
+  first (see Migration Plan).
+- **Encryption policy documented** (2026-09-10): Supabase already provides
+  AES-256 at-rest + TLS-in-transit encryption for the entire database by
+  default (cited in `REPEATLYOS_SECURITY_MODEL.md`). Column-level encryption
+  of specific sensitive fields (customer PII, payment references) is the
+  planned approach for when those tables are built in Phase 3/4 — not
+  applied retroactively to Phase 1's `cities`/`businesses` tables, which
+  hold public marketplace configuration, not secrets. See the user
+  conversation and Security Model doc for the full reasoning on why
+  blanket column-level encryption of searchable/public fields would break
+  marketplace search and SEO requirements from the master prompt.
+
 ## In Progress
 
 - Nothing actively in progress; paused after Phase 1 pending the user

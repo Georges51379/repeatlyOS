@@ -1,5 +1,64 @@
 # RepeatlyOS Security Model
 
+## Authentication
+
+- **Email/password** (`supabase.auth.signUp` / `signInWithPassword`) —
+  required for a user's first credential; Supabase hashes and stores
+  passwords itself (never handled or stored by RepeatlyOS code).
+- **Passkeys (WebAuthn)** — added 2026-09-10, Supabase Auth beta feature.
+  `signInWithPasskey()` is fully passwordless; cross-device sign-in (scanning
+  a QR code with a phone to authenticate a browser session) is the browser's
+  native WebAuthn "hybrid transport" behavior, not something RepeatlyOS
+  implements. A passkey cannot be a brand-new account's first credential —
+  Supabase requires an existing confirmed user before one can be registered
+  (`registerPasskey()`, from `/account/security`). See
+  `docs/REPEATLYOS_MIGRATION_PLAN.md` → "Passkey/WebAuthn Login" for the full
+  writeup, dashboard configuration required, and the explicit caveat that
+  this is unverified beta functionality with no live project to test against.
+
+## Data Encryption
+
+**At rest and in transit — already true today, no code required.** Supabase
+encrypts everything stored on disk with AES-256 (tables, indexes,
+write-ahead logs, backups, and Storage objects alike), protected by
+project-specific keys that are themselves guarded by FIPS 140-2 compliant
+HSMs; this cannot be disabled. Every connection (browser ↔ Supabase API,
+Supabase API ↔ Postgres) is TLS 1.2+. This is the industry-standard meaning
+of "the database is encrypted" and is what SOC2/HIPAA/PCI-DSS baseline
+requirements for encryption at rest/in transit actually ask for — RepeatlyOS
+gets it for free from the platform, for every row in every table, today.
+(Source: [Security at Supabase](https://supabase.com/security).)
+
+**What that does NOT cover:** anyone with legitimate database access (the
+project owner, anyone holding the service-role key, Supabase itself at the
+infrastructure level) can still read plaintext values when querying the
+database directly — at-rest encryption protects against disk/backup theft,
+not against a compromised credential or an authorized-but-malicious insider.
+Closing that gap requires **column/application-level encryption** on top of
+platform encryption, and that has a real, unavoidable cost: an encrypted
+column stops being usable in search, filtering, sorting, joins, or RLS
+predicates (short of decrypting every row on every query, which defeats the
+purpose and kills performance) — and the master prompt itself requires
+public, searchable, SEO-indexed marketplace listings (city pages, business
+storefronts, product/service search — §14, §17, §35). Product names, prices,
+categories, city/business names, and anything else meant to be publicly
+findable **cannot** be column-encrypted without breaking those requirements;
+they are not secrets to begin with.
+
+The approach adopted going forward, matching how real multi-tenant
+marketplace platforms handle this: rely on platform-level encryption
+(already on) for everything, and add column-level encryption (e.g. Postgres
+`pgcrypto`, or a dedicated searchable-encryption layer for fields that must
+still support exact-match lookups) only for a short, deliberate list of
+genuinely sensitive fields that are never searched, filtered, or publicly
+displayed — customer phone numbers/exact addresses, payment reference
+numbers, and similar PII. No such fields exist yet in the Phase 1 schema
+(Customer/Payment tables are Phase 3/4) — this is the policy to apply when
+those tables are designed, not something retrofitted onto `cities`/
+`businesses` now, since none of the Phase 1 tables hold sensitive PII in the
+first place (they're either public marketplace configuration or membership
+metadata already protected by RLS).
+
 ## Where tenant isolation is actually enforced
 
 **In Postgres Row Level Security policies**

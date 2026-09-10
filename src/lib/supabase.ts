@@ -14,4 +14,19 @@ export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 export const supabase = createClient(
   supabaseUrl || 'https://placeholder.supabase.co',
   supabaseAnonKey || 'placeholder-anon-key',
+  {
+    auth: {
+      // Passkey/WebAuthn support (supabase.auth.signInWithPasskey /
+      // registerPasskey / passkey.list / passkey.update / passkey.delete) is
+      // beta/experimental in @supabase/supabase-js — every passkey method
+      // throws unless this flag is set. Verified against the installed
+      // package source (node_modules/@supabase/auth-js/src/lib/types.ts),
+      // not just docs, since this API shipped after this assistant's
+      // knowledge cutoff. Must ALSO be enabled in the Supabase dashboard
+      // (Authentication -> Passkeys) with a Relying Party ID/origins
+      // configured before any of it works against a real project — see
+      // docs/REPEATLYOS_MIGRATION_PLAN.md.
+      experimental: { passkey: true },
+    },
+  },
 );

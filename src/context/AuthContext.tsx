@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import type { ReactNode } from 'react';
-import type { Session, User } from '@supabase/supabase-js';
+import type { Session, User, PasskeyListItem } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import type { BusinessMembershipWithBusiness } from '../types/domain';
 
@@ -15,6 +15,17 @@ interface AuthContextType {
   refreshMemberships: () => Promise<void>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: string | null }>;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  /** Passwordless sign-in with an existing passkey. Triggers the browser's
+   * native WebAuthn picker — cross-device sign-in (scan a QR code with your
+   * phone) is offered automatically there when available; RepeatlyOS doesn't
+   * render that UI itself. Beta Supabase Auth feature — see supabase.ts. */
+  signInWithPasskey: () => Promise<{ error: string | null }>;
+  /** Adds a passkey to the CURRENTLY signed-in account. Supabase requires an
+   * existing confirmed account first — a passkey cannot be a brand new
+   * user's first credential. */
+  registerPasskey: () => Promise<{ error: string | null }>;
+  listPasskeys: () => Promise<{ data: PasskeyListItem[]; error: string | null }>;
+  deletePasskey: (passkeyId: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -87,6 +98,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error?.message ?? null };
   };
 
+  const signInWithPasskey = async () => {
+    if (!isSupabaseConfigured) return { error: 'Supabase is not configured yet. See .env.example.' };
+    const { error } = await supabase.auth.signInWithPasskey();
+    return { error: error?.message ?? null };
+  };
+
+  const registerPasskey = async () => {
+    if (!isSupabaseConfigured) return { error: 'Supabase is not configured yet. See .env.example.' };
+    const { error } = await supabase.auth.registerPasskey();
+    return { error: error?.message ?? null };
+  };
+
+  const listPasskeys = async () => {
+    if (!isSupabaseConfigured) return { data: [], error: 'Supabase is not configured yet. See .env.example.' };
+    const { data, error } = await supabase.auth.passkey.list();
+    return { data: data ?? [], error: error?.message ?? null };
+  };
+
+  const deletePasskey = async (passkeyId: string) => {
+    if (!isSupabaseConfigured) return { error: 'Supabase is not configured yet. See .env.example.' };
+    const { error } = await supabase.auth.passkey.delete({ passkeyId });
+    return { error: error?.message ?? null };
+  };
+
   const signOut = async () => {
     if (!isSupabaseConfigured) return;
     await supabase.auth.signOut();
@@ -104,6 +139,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         refreshMemberships,
         signUp,
         signIn,
+        signInWithPasskey,
+        registerPasskey,
+        listPasskeys,
+        deletePasskey,
         signOut,
       }}
     >

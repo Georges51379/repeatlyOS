@@ -108,11 +108,58 @@ is recoverable).
    `docs/REPEATLYOS_SECURITY_MODEL.md` for the exact statement).
 5. Restart `npm run dev` after setting `.env` so Vite picks up the new
    variables.
+6. **For passkeys specifically** (see "Passkey/WebAuthn Login" below): in the
+   Supabase dashboard, go to **Authentication → Passkeys** and enable
+   **Enable Passkey authentication**, then set:
+   - **Relying Party ID**: for local dev, `localhost`; for production, your
+     real bare domain (e.g. `repeatly.com`, no scheme/port/path).
+   - **Relying Party Origins**: for local dev, `http://localhost:5173`
+     (Vite's default port — adjust if yours differs); for production, your
+     real `https://` origin(s). Loopback origins are the only ones allowed
+     over plain HTTP.
+   - Changing the Relying Party ID later invalidates every passkey already
+     registered — pick the real production domain deliberately, not a
+     placeholder.
 
 Until steps 1–3 are done, the app runs with a placeholder Supabase URL and
 `AuthContext` will show a clear "Supabase is not configured" state rather than
 crash — verified by build/typecheck, not by a live auth flow (see caveat
 above).
+
+## Passkey/WebAuthn Login (added 2026-09-10)
+
+Implemented using Supabase Auth's native beta passkey feature (shipped as
+beta in May 2026 — after this assistant's knowledge cutoff, so verified
+directly against the installed `@supabase/supabase-js@2.116.0` source in
+`node_modules`, not from memory or an unverified doc summary):
+
+- `src/lib/supabase.ts` opts into it via `auth: { experimental: { passkey:
+  true } }` (required — every passkey method throws without this flag).
+- `AuthContext` exposes `signInWithPasskey`, `registerPasskey`,
+  `listPasskeys`, `deletePasskey`, wrapping `supabase.auth.signInWithPasskey`,
+  `supabase.auth.registerPasskey`, and `supabase.auth.passkey.{list,delete}`.
+- `/login` leads with a "Sign in with a passkey" button ahead of the email/
+  password form.
+- `/account/security` lets a signed-in user register and manage passkeys.
+
+**Why signup still uses email/password, not passkey-only:** Supabase requires
+"an existing, confirmed, non-anonymous user" before a passkey can be
+registered — a passkey cannot be a brand new user's first-ever credential.
+So the flow is: sign up with email/password once → then add a passkey from
+`/account/security` → subsequently sign in with just the passkey.
+
+**Cross-device QR code sign-in:** RepeatlyOS does not render a QR code itself.
+When `signInWithPasskey()` triggers `navigator.credentials.get()`, supporting
+browsers (Chrome, Safari, Edge) offer "use another device" as one of the
+picker options, which shows a QR code you scan with your phone — this is
+standard WebAuthn hybrid-transport behavior, not something built here, and
+its availability depends on the browser/OS, not on RepeatlyOS's code.
+
+**Not verified:** no live Supabase project exists, and this feature cannot be
+verified without the Passkeys dashboard toggle configured — see step 6 above.
+This is beta software per Supabase ("the API may change without notice");
+budget time to re-check this against the current docs before relying on it
+for production sign-in.
 
 ## Immediate Next Steps
 

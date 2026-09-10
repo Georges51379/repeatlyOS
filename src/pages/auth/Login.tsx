@@ -1,15 +1,16 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Zap } from 'lucide-react';
+import { Zap, Fingerprint } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export default function Login() {
-  const { signIn, configured } = useAuth();
+  const { signIn, signInWithPasskey, configured } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [passkeySubmitting, setPasskeySubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,6 +20,22 @@ export default function Login() {
     setSubmitting(false);
     if (signInError) {
       setError(signInError);
+      return;
+    }
+    navigate('/dashboard');
+  };
+
+  const handlePasskey = async () => {
+    setPasskeySubmitting(true);
+    setError(null);
+    // Opens the browser's native passkey picker — on most platforms this
+    // includes a "use another device" option that shows a QR code for
+    // scanning with a phone. RepeatlyOS doesn't render that UI itself; the
+    // browser does, as standard WebAuthn behavior.
+    const { error: passkeyError } = await signInWithPasskey();
+    setPasskeySubmitting(false);
+    if (passkeyError) {
+      setError(passkeyError);
       return;
     }
     navigate('/dashboard');
@@ -42,6 +59,22 @@ export default function Login() {
               <code>.env</code> and set your project URL/anon key before signing in works.
             </div>
           )}
+
+          <button
+            type="button"
+            onClick={handlePasskey}
+            disabled={passkeySubmitting || !configured}
+            className="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold py-2.5 rounded-lg transition-colors mb-4"
+          >
+            <Fingerprint className="w-4 h-4" />
+            {passkeySubmitting ? 'Waiting for passkey…' : 'Sign in with a passkey'}
+          </button>
+
+          <div className="flex items-center gap-3 mb-4">
+            <div className="h-px bg-slate-800 flex-1" />
+            <span className="text-[10px] uppercase tracking-wide text-slate-600">or with email</span>
+            <div className="h-px bg-slate-800 flex-1" />
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
