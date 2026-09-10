@@ -112,6 +112,23 @@ encoding (longer, but only ever `[0-9a-f]`, so it can never contain
 whitespace or anything else that needs escaping). Also fixed in place in the
 same migration file for the same reason as above — re-run it once more.
 
+**Third bug, and the most serious one, also found by live testing (same
+day):** the `anon` role — meaning any unauthenticated browser request, no
+session at all — could call `decrypt_pii` directly and get plaintext back
+with a 200. The original migration only did `revoke all on function ...
+from anon, authenticated`, which never touched the separate, implicit grant
+Postgres makes to the `PUBLIC` pseudo-role on every newly created function
+by default. Every role — including `anon` and `authenticated` — has
+whatever `PUBLIC` has, regardless of what's separately revoked from them by
+name, so the original revokes were a no-op in practice. Fixed by adding
+`revoke all on function ... from public` for `pii_key`/`encrypt_pii`/
+`decrypt_pii` — fix written but **not yet re-verified live** at the time of
+this note; re-test after re-running the migration before trusting this is
+closed. This is a general lesson worth generalizing: **any function meant to be
+service_role-only must explicitly `REVOKE ... FROM PUBLIC`, not just from
+the specific roles you're trying to block** — apply this to every future
+function with the same intent.
+
 This is the concrete template to reuse for every future genuinely-sensitive
 field (customer phone/address, payment references, etc. in Phase 3/4):
 ciphertext column + auto-encrypt trigger + one Edge Function per read path

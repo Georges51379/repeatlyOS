@@ -79,6 +79,16 @@ as $$
   end;
 $$;
 
+-- REVOKE ... FROM PUBLIC, not just anon/authenticated: Postgres grants
+-- EXECUTE on every newly created function to the PUBLIC pseudo-role by
+-- default, and every role (including anon/authenticated) implicitly has
+-- whatever PUBLIC has — confirmed live: without this, anon could call
+-- decrypt_pii and get plaintext back with a 200, despite the
+-- `from anon, authenticated` revokes below, because those never touched the
+-- PUBLIC grant that was actually satisfying the request.
+revoke all on function public.pii_key() from public;
+revoke all on function public.encrypt_pii(text) from public;
+revoke all on function public.decrypt_pii(text) from public;
 revoke all on function public.pii_key() from anon, authenticated;
 revoke all on function public.encrypt_pii(text) from anon, authenticated;
 revoke all on function public.decrypt_pii(text) from anon, authenticated;
