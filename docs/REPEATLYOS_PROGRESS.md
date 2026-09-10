@@ -312,8 +312,17 @@
     active services, with a status dropdown (pending/confirmed/completed/
     cancelled).
   - Nav items added to `BusinessLayout`, module-gated same as before.
-  - **Not yet verified against the live project** — needs the new
-    migration run first.
+  - **Verified live end-to-end** (2026-09-10) — no bugs found:
+    - Cross-tenant isolation: owner B got an empty list reading business
+      A's services and a `403` inserting one.
+    - Created a service, then a customer + booking linking both (real FK
+      relationships, not freeform strings as in the demo).
+    - **Permission granularity** confirmed precisely: a staff member with
+      no permissions got `403` writing to both services and bookings;
+      after being granted `bookings.manage` ONLY, bookings writes
+      succeeded while services writes still correctly returned `403` — the
+      two permissions are genuinely independent, not accidentally coupled.
+    - All test data (2 businesses, 3 auth users) deleted afterward.
 
 ## In Progress
 
