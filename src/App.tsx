@@ -10,6 +10,8 @@ import AppHome from './pages/app/AppHome';
 import BusinessLayout from './components/BusinessLayout';
 import RealCustomers from './pages/business/Customers';
 import RealTasks from './pages/business/Tasks';
+import BusinessServices from './pages/business/Services';
+import BusinessBookings from './pages/business/Bookings';
 import BusinessSettings from './pages/business/BusinessSettings';
 import LandingPage from './pages/LandingPage';
 import BusinessPublicPage from './pages/BusinessPublicPage';
@@ -96,6 +98,8 @@ export default function App() {
           >
             <Route index element={<Navigate to="customers" replace />} />
             <Route path="customers" element={<RealCustomers />} />
+            <Route path="services" element={<BusinessServices />} />
+            <Route path="bookings" element={<BusinessBookings />} />
             <Route path="tasks" element={<RealTasks />} />
             <Route path="settings" element={<BusinessSettings />} />
           </Route>

@@ -295,6 +295,26 @@
       gate on `customers.manage`).
     - All test data (2 businesses, 3 auth users) deleted afterward.
 
+- **Phase 3 — third real domain: Services + Bookings (2026-09-10):**
+  - `supabase/migrations/20260910000008_services_and_bookings.sql`: real
+    `services` table (write gated by `services.manage`) and `bookings`
+    table (write gated by `bookings.manage`), both from master-prompt §7's
+    actual permission vocabulary this time (unlike Tasks). `bookings.staff`
+    is plain text for now — no real Staff/StaffMember table exists yet;
+    introducing one is separate, bigger scope.
+  - **Deliberate MVP gap, called out rather than silently skipped**:
+    master-prompt §16 asks to "prevent overlapping bookings" — no DB-level
+    exclusion constraint was added, since a real constraint wants a stable
+    resource identity (a real staff id) to partition by, which doesn't
+    exist yet while `staff` is just free text. Revisit once Staff is real.
+  - `pages/business/Services.tsx` and `pages/business/Bookings.tsx`: real
+    CRUD UIs; Bookings lets you optionally link a customer and pick from
+    active services, with a status dropdown (pending/confirmed/completed/
+    cancelled).
+  - Nav items added to `BusinessLayout`, module-gated same as before.
+  - **Not yet verified against the live project** — needs the new
+    migration run first.
+
 ## In Progress
 
 - Nothing actively in progress; paused after Phase 1 pending the user

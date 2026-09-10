@@ -147,6 +147,36 @@ export interface Task {
   updated_at: string;
 }
 
+export interface Service {
+  id: string;
+  business_id: string;
+  name: string;
+  description: string | null;
+  duration_minutes: number;
+  price: number | null;
+  active: boolean;
+  booking_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled';
+
+export interface Booking {
+  id: string;
+  business_id: string;
+  customer_id: string | null;
+  service_id: string | null;
+  staff: string | null;
+  scheduled_date: string;
+  start_time: string;
+  end_time: string;
+  status: BookingStatus;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AuditLogEntry {
   id: string;
   actor_user_id: string | null;
