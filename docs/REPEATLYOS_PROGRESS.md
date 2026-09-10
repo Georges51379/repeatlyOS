@@ -493,9 +493,30 @@
     set), computed total, status workflow (new → confirmed → preparing →
     ready → completed, plus cancelled/refunded).
   - Nav item + route added, module-gated by the existing `orders` key.
+  - **Verified live end-to-end** (2026-09-10) — no bugs found, and the
+    snapshot-immutability guarantee was proven for real, not just assumed:
+    - Created a product, an order, and a line item snapshotting it.
+    - Renamed and repriced the product afterward — the order line item
+      still showed the ORIGINAL name/price, untouched.
+    - Deleted the product entirely — the line item survived
+      (`product_id` correctly became `null` via `on delete set null`),
+      `product_name`/`unit_price` still intact. This is the concrete proof
+      that historical order records can never be corrupted by a later
+      product edit or deletion.
+    - Cross-tenant isolation held, including the subtler attack of a
+      different business's owner trying to insert an `order_items` row
+      that *references* business A's real order id directly (knowing the
+      UUID) — correctly rejected (`42501`), confirmed via admin key that
+      no row was added.
+    - Permission gating for `orders.manage` confirmed precisely: reset the
+      order to `new`, had an unpermitted staffer attempt to PATCH it to
+      `completed` (got `204`, PostgREST's standard "matched 0 rows"
+      response for a blocked UPDATE), then independently verified via
+      `service_role` that the status was still genuinely `new` — not just
+      an empty response that could be masking a real change.
+    - All test data (2 businesses, 3 auth users) deleted afterward.
   - **This closes out Phase 4's initial domain list** (Products, Inventory,
-    Orders) — not yet verified against the live project, needs the new
-    migration run first.
+    Orders) — all live-verified against the real project.
 
 ## In Progress
 
