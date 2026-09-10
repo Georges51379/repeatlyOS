@@ -1,9 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Zap, ChevronDown, ChevronUp, LogOut, ShieldCheck } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { Zap, ChevronDown, ChevronUp, LogOut, ShieldCheck, LayoutDashboard } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { MODULE_KEYS } from '../../data/moduleKeys';
+import ModulesPanel from '../../components/ModulesPanel';
 import type { BusinessStatus } from '../../types/domain';
 
 const STATUS_STYLES: Record<BusinessStatus, string> = {
@@ -23,67 +22,6 @@ const STATUS_LABEL: Record<BusinessStatus, string> = {
   rejected: 'Rejected',
   archived: 'Archived',
 };
-
-function ModulesPanel({ businessId, canEdit }: { businessId: string; canEdit: boolean }) {
-  const [enabled, setEnabled] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState<string | null>(null);
-
-  useEffect(() => {
-    (async () => {
-      const { data } = await supabase
-        .from('business_modules')
-        .select('module_key, enabled')
-        .eq('business_id', businessId);
-      setEnabled(new Set((data ?? []).filter((m) => m.enabled).map((m) => m.module_key)));
-      setLoading(false);
-    })();
-  }, [businessId]);
-
-  const toggle = async (key: string) => {
-    if (!canEdit || saving) return;
-    setSaving(key);
-    const nowEnabled = !enabled.has(key);
-    const { error } = await supabase
-      .from('business_modules')
-      .upsert(
-        { business_id: businessId, module_key: key, enabled: nowEnabled },
-        { onConflict: 'business_id,module_key' },
-      );
-    setSaving(null);
-    if (error) return;
-    setEnabled((prev) => {
-      const next = new Set(prev);
-      if (nowEnabled) next.add(key);
-      else next.delete(key);
-      return next;
-    });
-  };
-
-  if (loading) return <p className="text-xs text-slate-500 py-2">Loading modules…</p>;
-
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-3">
-      {MODULE_KEYS.map((key) => (
-        <label
-          key={key}
-          className={`flex items-center gap-2 text-xs px-2.5 py-2 rounded-lg border ${
-            enabled.has(key) ? 'border-blue-500/40 bg-blue-600/10 text-blue-300' : 'border-slate-800 text-slate-500'
-          } ${canEdit ? 'cursor-pointer' : 'cursor-default opacity-70'}`}
-        >
-          <input
-            type="checkbox"
-            checked={enabled.has(key)}
-            onChange={() => toggle(key)}
-            disabled={!canEdit || saving === key}
-            className="accent-blue-500"
-          />
-          {key}
-        </label>
-      ))}
-    </div>
-  );
-}
 
 export default function AppHome() {
   const { user, memberships, signOut } = useAuth();
@@ -168,9 +106,18 @@ export default function AppHome() {
                   </p>
                 )}
 
+                <div className="mt-3 flex items-center gap-3">
+                  <Link
+                    to={`/app/${m.business_id}/customers`}
+                    className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                  >
+                    <LayoutDashboard className="w-3.5 h-3.5" /> Open dashboard
+                  </Link>
+                </div>
+
                 {expanded === m.business_id && (
                   <div className="mt-2 border-t border-slate-800">
-                    <p className="text-xs text-slate-400 pt-3">Modules</p>
+                    <p className="text-xs text-slate-400 pt-3 pb-2">Modules</p>
                     <ModulesPanel businessId={m.business_id} canEdit={m.role === 'owner'} />
                   </div>
                 )}

@@ -218,6 +218,44 @@
     in-with-a-passkey works end-to-end — everything checkable from the
     server side is confirmed correct.
 
+- **Phase 3 — first real dashboard domain: Customers (2026-09-10):**
+  - `supabase/migrations/20260910000006_customers.sql`: real `customers`
+    table, RLS-protected. Read is open to any active business member; write
+    is gated by the `customers.manage` **permission** (not just a role
+    check) via `has_business_permission` — the first table in the schema to
+    actually exercise the fine-grained permission system built in Phase 1,
+    not just owner/manager role checks.
+  - First real business-scoped dashboard shell: `BusinessLayout.tsx`
+    (sidebar nav driven by `business_modules`, via a new
+    `useEnabledModules` hook), `useCurrentBusiness` hook (resolves the
+    `:businessId` route param against the user's own memberships — a UX
+    convenience, not the security boundary, which stays RLS), and routes
+    under `/app/:businessId/{customers,settings}`.
+  - Extracted the module-toggle UI out of `AppHome.tsx` into a shared
+    `components/ModulesPanel.tsx` (now used both there and on the new
+    business Settings page) backed by the same `useEnabledModules` hook, so
+    both stay in sync with one source of truth instead of duplicating the
+    fetch logic.
+  - `pages/business/Customers.tsx`: real list/add/edit/delete UI against
+    the `customers` table, with an empty state (master-prompt §33) and
+    write controls hidden (client-side UX only) when the signed-in
+    membership lacks `customers.manage`.
+  - Lint note: new data-fetch-on-mount effects in `useEnabledModules.ts`
+    and `Customers.tsx` trip the same `react-hooks/set-state-in-effect`
+    rule already present throughout this codebase (`AuthContext`,
+    `AccountSecurity`, most original demo pages) — consistent with existing
+    convention, not new debt. Also observed the same rule produce different
+    specific line-level output across lint runs for a file untouched this
+    session (`BusinessPublicPage.tsx`), confirming some real
+    non-determinism in this rule/codebase combination independent of any
+    edits — noted here so future diffs aren't over-interpreted as
+    regressions without checking first.
+  - **Not yet verified against the live project** — needs the new
+    migration run first, then plan is the same live-REST verification
+    approach as Phases 1–2: create a customer as an owner, confirm a
+    different business's member can't see/touch it, confirm a staff member
+    without `customers.manage` can read but not write.
+
 ## In Progress
 
 - Nothing actively in progress; paused after Phase 1 pending the user

@@ -7,6 +7,9 @@ import AccountSecurity from './pages/auth/AccountSecurity';
 import RequireAuth from './components/RequireAuth';
 import Onboarding from './pages/onboarding/Onboarding';
 import AppHome from './pages/app/AppHome';
+import BusinessLayout from './components/BusinessLayout';
+import RealCustomers from './pages/business/Customers';
+import BusinessSettings from './pages/business/BusinessSettings';
 import LandingPage from './pages/LandingPage';
 import BusinessPublicPage from './pages/BusinessPublicPage';
 import DashboardLayout from './components/DashboardLayout';
@@ -82,6 +85,18 @@ export default function App() {
               </RequireAuth>
             }
           />
+          <Route
+            path="/app/:businessId"
+            element={
+              <RequireAuth>
+                <BusinessLayout />
+              </RequireAuth>
+            }
+          >
+            <Route index element={<Navigate to="customers" replace />} />
+            <Route path="customers" element={<RealCustomers />} />
+            <Route path="settings" element={<BusinessSettings />} />
+          </Route>
           <Route path="/business/elite-carwash" element={<BusinessPublicPage />} />
           <Route path="/demo/setup" element={<DemoSetup />} />
           <Route path="/demo/pitch" element={<PitchPage />} />

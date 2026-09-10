@@ -119,6 +119,19 @@ export interface BusinessModule {
   updated_at: string;
 }
 
+export interface Customer {
+  id: string;
+  business_id: string;
+  full_name: string;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  notes: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AuditLogEntry {
   id: string;
   actor_user_id: string | null;
