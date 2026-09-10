@@ -406,6 +406,19 @@
     Services+Bookings, Analytics, Payments, Customer Memberships) built and
     live-verified. Next: Phase 4 (Commerce — Products/Inventory/Orders/Cart).
 
+- **Phase 4 — Commerce begins: Products (2026-09-10):**
+  - `supabase/migrations/20260910000011_products.sql`: real `products`
+    table. Deliberately flat (no separate ProductCategory/ProductVariant
+    tables yet, per master-prompt §5's eventual entity list) — `category`
+    is a plain text column for now, upgradeable to a real FK later without
+    breaking this table. Read open to any member (plus a marketplace-
+    visible public-read clause, same pattern as `businesses`, anticipating
+    Phase 6 without building it yet); write gated by `products.manage`.
+  - `pages/business/Products.tsx`: real CRUD UI with price/sale price/SKU.
+  - Nav item + route added, module-gated by the existing `products` key.
+  - **Not yet verified against the live project** — needs the new
+    migration run first.
+
 ## In Progress
 
 - Nothing actively in progress; paused after Phase 1 pending the user

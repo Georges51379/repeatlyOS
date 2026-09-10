@@ -8,6 +8,7 @@ import RequireAuth from './components/RequireAuth';
 import Onboarding from './pages/onboarding/Onboarding';
 import AppHome from './pages/app/AppHome';
 import BusinessLayout from './components/BusinessLayout';
+import RealProducts from './pages/business/Products';
 import RealCustomers from './pages/business/Customers';
 import RealTasks from './pages/business/Tasks';
 import BusinessServices from './pages/business/Services';
@@ -100,6 +101,7 @@ export default function App() {
             }
           >
             <Route index element={<Navigate to="customers" replace />} />
+            <Route path="products" element={<RealProducts />} />
             <Route path="customers" element={<RealCustomers />} />
             <Route path="services" element={<BusinessServices />} />
             <Route path="bookings" element={<BusinessBookings />} />

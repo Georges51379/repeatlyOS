@@ -215,6 +215,22 @@ export interface CustomerMembership {
   updated_at: string;
 }
 
+export interface Product {
+  id: string;
+  business_id: string;
+  name: string;
+  description: string | null;
+  category: string | null;
+  price: number;
+  sale_price: number | null;
+  sku: string | null;
+  image_url: string | null;
+  active: boolean;
+  marketplace_visible: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AuditLogEntry {
   id: string;
   actor_user_id: string | null;
