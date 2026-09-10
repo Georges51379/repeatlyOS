@@ -57,28 +57,33 @@ export default function Cart() {
     setSubmitting(true);
     setError(null);
 
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .insert({
-        business_id: businessId,
-        customer_name: name.trim(),
-        customer_phone: phone.trim(),
-        delivery_method: deliveryMethod,
-        delivery_address: deliveryMethod === 'delivery' ? address.trim() : null,
-        total_amount: total,
-      })
-      .select()
-      .single();
+    // Generate the id client-side and don't request the row back at all:
+    // orders_member_read requires business membership, which a guest
+    // shopper never has, so INSERT ... RETURNING would fail the same way
+    // businesses' bootstrap insert once did (Phase 1) — except a guest has
+    // no stable identity for a created_by-style fix. Since the client
+    // already knows every value it's inserting, there's nothing to read
+    // back; this sidesteps the problem entirely instead of working around it.
+    const orderId = crypto.randomUUID();
+    const { error: orderError } = await supabase.from('orders').insert({
+      id: orderId,
+      business_id: businessId,
+      customer_name: name.trim(),
+      customer_phone: phone.trim(),
+      delivery_method: deliveryMethod,
+      delivery_address: deliveryMethod === 'delivery' ? address.trim() : null,
+      total_amount: total,
+    });
 
-    if (orderError || !order) {
+    if (orderError) {
       setSubmitting(false);
-      setError(orderError?.message ?? 'Failed to place order.');
+      setError(orderError.message);
       return;
     }
 
     const { error: itemsError } = await supabase.from('order_items').insert(
       items.map((i) => ({
-        order_id: order.id,
+        order_id: orderId,
         product_id: i.productId,
         product_name: i.name,
         unit_price: i.unitPrice,

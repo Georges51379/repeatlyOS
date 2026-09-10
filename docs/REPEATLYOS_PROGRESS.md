@@ -555,12 +555,46 @@
     the new public insert paths — a bad actor could spam orders/bookings
     at any marketplace-visible business today. Acceptable for an initial
     single-city launch; must be revisited in Phase 9 hardening.
-  - **Not yet verified against the live project** — needs the new
-    migration run first. Plan: verify guest order/booking creation works,
-    that a marketplace-invisible business's products/services genuinely
-    stay hidden, that `product_stock_status` never leaks the raw quantity,
-    and that the existing merchant-side dashboard behavior (Phases 1-4) is
-    completely unaffected by these additive policies.
+  - **Live testing found two real bugs, both fixed** (2026-09-10):
+    1. **`products_member_read`'s public-read clause (from Phase 4) never
+       checked the parent business's `status`/`marketplace_visible` — only
+       the product's own two flags.** Confirmed live: a product with
+       `marketplace_visible=true` on a business still in `draft` was
+       publicly readable anyway, directly contradicting master-prompt §9.
+       The Phase 4 verification of this exact policy never tested this
+       specific combination, so it passed at the time on a narrower case.
+       Fixed in `20260910000015_fix_products_public_read_gap.sql`, bringing
+       `products` in line with the (already-correct) pattern
+       `services_public_read` and the orders/bookings policies use.
+    2. **`order_items_public_marketplace_insert`'s WITH CHECK used an inline
+       subquery against `orders`**, which has no public SELECT policy —
+       so that subquery, itself subject to RLS for the calling (anonymous)
+       role, always saw zero rows, even for an order the same guest had
+       just created moments earlier. Confirmed live: guest order creation
+       itself succeeded (its check only needs `businesses`, which does
+       have a public-read clause), but adding an item to it failed every
+       time. Fixed in `20260910000016_fix_order_items_public_insert.sql`
+       by routing the check through a new `security definer` function
+       (`order_is_public_marketplace`) — the same pattern every other
+       cross-table RLS check in this project already uses, for exactly
+       this reason.
+    3. Also fixed in the frontend: `Cart.tsx`'s order insert requested the
+       row back via `.select().single()`, which — same root cause as the
+       Phase 1 `businesses` bootstrap bug — fails for a guest with no
+       stable identity to grant read-back access to. Fixed by generating
+       the order id client-side (`crypto.randomUUID()`) and not requesting
+       the row back at all, since the client already knows every value it
+       inserted. `ServiceDetail.tsx`'s booking insert was already written
+       without `.select()`, so it was unaffected.
+  - **Not yet fully re-verified against the live project** — needs both
+    new fix migrations run; the underlying guest-order and guest-booking
+    creation paths (using the corrected approach) were already confirmed
+    working live during this same testing round, and the hidden-business
+    rejection was confirmed too (`42501`, the correct RLS violation code,
+    surfaced as HTTP 401 rather than 403 — a cosmetic gateway detail, not
+    a security gap). Still to verify after the fixes: the corrected
+    `products_member_read` policy, and that existing merchant-side
+    behavior (Phases 1-4) remains completely unaffected.
 
 ## In Progress
 
