@@ -83,9 +83,59 @@ is nothing to run it against yet. See "Required Before This Is Testable" below.
 - **Phase 8 — SaaS entitlements** (`BusinessSaaSSubscription`, plan/module
   gating — genuinely new, and must stay clearly separate from
   `CustomerMembership`/`CustomerSubscription`, see classification table above).
+  - **Structured product search, part 1 — faceted attributes.** Requested
+    2026-09-10: a shopper should be able to find "Nike Kobe basketball
+    shoes, size 43, black, in Batroun" — today's `Search.tsx` only does a
+    single `ILIKE` against `products.name`, and `products` has no
+    structured attributes (brand/size/color/edition) at all, so a query
+    like that can only match if the whole phrase happens to be a
+    substring of the product name.
+    - Add `product_attributes` (`product_id`, `key`, `value`, both
+      `text`) rather than fixed columns — different business types need
+      different facets (shoes: size/color/brand; a bakery: flavor/weight)
+      and master-prompt §12's business-templates-as-configuration pattern
+      already treats per-type fields this way. RLS: same visibility rule
+      as `products` (member of the business, or public if the parent
+      product is marketplace-visible) — mirror `products_member_read`/the
+      Phase 4 fix that also checks the parent business's status.
+    - Merchant-side: an attribute editor on the product form
+      (`src/pages/business/Products.tsx`), free-form key/value pairs so
+      it doesn't hardcode categories.
+    - Shopper-side: `Search.tsx` gains facet filters (brand/size/color as
+      `<select>`s populated from the distinct values present in that
+      city, not global) alongside the existing text query; the query
+      becomes a join against `product_attributes` with `where` per
+      selected facet, still plain Postgres — no new infra.
+    - Deliberately still no paid search provider (Algolia/Typesense) —
+      consistent with the existing note in `Search.tsx` that this is a
+      first single-city-launch scale decision.
+  - **Structured product search, part 2 — natural-language query
+    (optional, later in Phase 8 or pushed into Phase 9).** Accept the
+    shopper's free-text sentence, call an LLM to extract
+    `{brand, size, color, category, keywords}` from it, then run that
+    through the *same* faceted query part 1 builds — never let the LLM
+    write SQL or receive tenant data outside what's already public. Scope
+    notes:
+    - This is additive UX on top of part 1, not a replacement — part 1
+      must ship first since it's what the extracted filters get applied
+      against.
+    - Needs a server-side call (an Edge Function, same pattern as
+      `decrypt-invite-email`) so the LLM API key never reaches the
+      client.
+    - Explicitly optional / can slip to whenever it's prioritized — the
+      master prompt's MVP scope excludes "advanced AI," so treat this as
+      a clearly-labeled post-MVP enhancement, not a Phase 8 blocker.
 - **Phase 9 — Hardening** (tenant-isolation tests, authz tests — there is
   currently no test suite at all, so this phase also establishes the first
   ones).
+  - Add regression tests for the faceted search RLS (an anonymous user
+    must never see `product_attributes` for a product whose parent
+    business isn't `active`/`marketplace_visible` — same class of bug as
+    the Phase 6 `products_member_read` gap already found and fixed).
+  - If the natural-language search (Phase 8 part 2) shipped: rate-limit
+    the LLM-extraction endpoint specifically (it's a paid, abusable
+    resource) in the same pass as the already-flagged rate-limiting/CAPTCHA
+    gap on public marketplace insert paths.
 - **Phase 10 — Production prep.**
 
 Each phase should land as its own set of commits (this repo has no git history
