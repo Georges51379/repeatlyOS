@@ -250,11 +250,19 @@
     non-determinism in this rule/codebase combination independent of any
     edits — noted here so future diffs aren't over-interpreted as
     regressions without checking first.
-  - **Not yet verified against the live project** — needs the new
-    migration run first, then plan is the same live-REST verification
-    approach as Phases 1–2: create a customer as an owner, confirm a
-    different business's member can't see/touch it, confirm a staff member
-    without `customers.manage` can read but not write.
+  - **Verified live end-to-end** (2026-09-10) — no bugs found this round:
+    - Owner A created a customer in business A; owner B (a different
+      tenant) got an empty list querying business A's customers and a
+      `403` attempting to insert one.
+    - A staff member with no `permissions` could read business A's
+      customers (any active member can) but got `403` trying to create
+      one.
+    - After the owner granted that same staff member `customers.manage`,
+      the identical create request succeeded — the full deny → grant →
+      allow permission lifecycle confirmed working, the first real proof
+      the fine-grained permission system (not just role) actually
+      functions, not just compiles.
+    - All test data (2 businesses, 3 auth users) deleted afterward.
 
 ## In Progress
 
