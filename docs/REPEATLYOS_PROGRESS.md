@@ -386,11 +386,25 @@
   - `pages/business/Memberships.tsx`: sell a package (fixed sessions) or
     subscription (recurring) to a customer, track sessions used vs. total.
   - Nav items added, module-gated as usual (`payments`, `subscriptions`).
-  - **Not yet verified against the live project** — needs the new
-    migration run first. Plan: verify `finance.view` gates Payments read
-    (not just write, unlike every other domain so far), and that
-    `customer_memberships` read stays open to any member while write stays
-    gated.
+  - **Verified live end-to-end** (2026-09-10) — no bugs found, and this
+    is the most granular permission test run yet:
+    - A staff member with zero permissions: payments read → **empty**
+      (confirming `finance.view` genuinely gates read, unlike every other
+      domain so far where any active member can read); customer_memberships
+      read → **succeeded** (open read as designed); writes to both →
+      blocked.
+    - After granting `finance.view` only: payments read → succeeded
+      (saw the real payment); payments write → still `403` (view ≠
+      manage).
+    - After also granting `finance.manage`: payments write succeeded, and
+      the same staffer could now use a session on the customer's package
+      (`sessions_used` incremented correctly).
+    - A completely unrelated owner (different business) got empty reads on
+      both tables.
+    - All test data (1 business, 3 auth users) deleted afterward.
+  - **Phase 3 is now complete** — all 6 domains (Customers, Tasks,
+    Services+Bookings, Analytics, Payments, Customer Memberships) built and
+    live-verified. Next: Phase 4 (Commerce — Products/Inventory/Orders/Cart).
 
 ## In Progress
 
