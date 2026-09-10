@@ -231,6 +231,26 @@ export interface Product {
   updated_at: string;
 }
 
+export interface InventoryItem {
+  id: string;
+  business_id: string;
+  product_id: string;
+  quantity: number;
+  low_stock_threshold: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InventoryMovement {
+  id: string;
+  business_id: string;
+  inventory_item_id: string;
+  change_amount: number;
+  reason: string;
+  created_by: string | null;
+  created_at: string;
+}
+
 export interface AuditLogEntry {
   id: string;
   actor_user_id: string | null;

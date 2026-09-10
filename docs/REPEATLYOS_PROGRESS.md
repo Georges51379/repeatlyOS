@@ -429,6 +429,33 @@
       was `403` until `products.manage` was granted, then succeeded.
     - All test data (1 business, 3 auth users) deleted afterward.
 
+- **Phase 4 — Inventory (2026-09-10):**
+  - `supabase/migrations/20260910000012_inventory.sql`: `inventory_items`
+    (one row per tracked product, `quantity` denormalized) +
+    `inventory_movements` (append-only ledger — every stock change is a
+    permanent row, no update/delete policy exists for movements at all).
+    `apply_inventory_movement` trigger is the ONLY thing that ever changes
+    `quantity`; a second trigger, `reject_direct_quantity_change`, actively
+    **rejects** any client attempt to PATCH `quantity` directly (using a
+    transaction-local flag to distinguish its own internal update from a
+    client one) — written this way on purpose, since an RLS policy alone
+    only gates which rows can be updated, not which columns, and would not
+    by itself have stopped a client from just setting `quantity` to
+    anything via a normal PATCH. `quantity >= 0` enforced by a check
+    constraint. Read open to any member; write (`inventory.adjust`) only
+    lets you create a tracking row (`inventory_items` insert) or record a
+    movement — never touch quantity as a bare number.
+  - `pages/business/Inventory.tsx`: per-product stock view with low-stock
+    highlighting and +/- adjustment buttons (each one inserts a movement,
+    never writes quantity directly, matching the DB design). Products
+    without inventory tracking show "Start tracking" instead of a
+    always-on row (not every product needs stock tracking).
+  - **Not yet verified against the live project** — needs the new
+    migration run first; plan is to specifically verify the
+    direct-quantity-write rejection actually fires (attempt a raw PATCH of
+    `quantity` and confirm it errors, not just that the adjust-via-
+    movement path works).
+
 ## In Progress
 
 - Nothing actively in progress; paused after Phase 1 pending the user
