@@ -283,8 +283,17 @@
     business won't show this nav item until the owner enables it from
     Settings (expected, not a bug — verify by enabling it manually during
     testing).
-  - **Not yet verified against the live project** — needs the new
-    migration run first.
+  - **Verified live end-to-end** (2026-09-10) — no bugs found:
+    - Created a customer and a task linked to it (`customer_id` FK works).
+    - Owner B (different tenant) got an empty list querying business A's
+      tasks and an update attempt affected 0 rows — independently confirmed
+      via admin key the task's `board_column` was genuinely untouched.
+    - A staff member with zero `permissions` successfully created a new
+      task and moved the existing one to "completed" — confirming the
+      deliberate "no permission gate, any active member manages tasks"
+      design works as intended (unlike Customers, which correctly does
+      gate on `customers.manage`).
+    - All test data (2 businesses, 3 auth users) deleted afterward.
 
 ## In Progress
 
