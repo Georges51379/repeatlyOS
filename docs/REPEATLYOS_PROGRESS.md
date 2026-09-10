@@ -97,6 +97,37 @@
   **This is the first Phase 1 claim in this log backed by a real database
   test, not just a passing build.**
 
+- **Security hardening round** (2026-09-10), in response to a follow-up
+  request for full-database encryption + anti-SQLi/clickjacking/ID-exposure:
+  - **Field-level encryption implemented for real**: Vault-stored key,
+    `pgcrypto`-based `encrypt_pii`/`decrypt_pii` (service_role-only —
+    execute revoked from anon/authenticated), an auto-encrypt trigger on
+    `business_memberships.invited_email`, and a
+    `decrypt-invite-email` Edge Function that authorizes via the caller's
+    own RLS-gated read before ever touching the service-role client. Not
+    deployed/verified yet (needs the user to run the new migration and
+    deploy the function — no CLI/dashboard access from here).
+  - **Declined, with concrete reasoning, to encrypt every table/column**:
+    would break the exact RLS mechanism just verified live (Postgres can't
+    evaluate `city_id = ...`/`status = 'active'` against ciphertext) and the
+    master prompt's own marketplace search/SEO requirements. Full reasoning
+    in `REPEATLYOS_SECURITY_MODEL.md` → "Why this can't be blanket."
+  - **Clickjacking**: `X-Frame-Options: DENY` + CSP `frame-ancestors 'none'`
+    (+ `X-Content-Type-Options`, `Referrer-Policy`) added to
+    `vite.config.ts` (dev/preview) and `public/_headers`
+    (Netlify/Cloudflare Pages — auto-applies if deployed there).
+  - **SQL injection**: audited and confirmed already structurally prevented
+    (PostgREST/supabase-js only, no raw SQL string-building anywhere in the
+    codebase) — documented as a hard rule for future search/RPC work.
+  - **IDs in console/network**: audited — only one `console.*` call exists
+    in the whole frontend, and it logs a benign error object, nothing
+    sensitive. Clarified in the Security Model doc that UUIDs (already used
+    everywhere) solve the *enumerable-ID* problem, while removing IDs from
+    responses entirely isn't coherent for a REST API the frontend must
+    operate against — and isn't needed for security, since the tenant-
+    isolation test already proved knowing another tenant's UUID grants no
+    access.
+
 ## In Progress
 
 - Nothing actively in progress; paused after Phase 1 pending the user

@@ -126,6 +126,28 @@ Until steps 1–3 are done, the app runs with a placeholder Supabase URL and
 crash — verified by build/typecheck, not by a live auth flow (see caveat
 above).
 
+## Field-Level Encryption (added 2026-09-10) — Action Needed
+
+1. Run `supabase/migrations/20260910000004_field_level_encryption.sql` in
+   the SQL editor (after migration 3, which you've already run).
+2. Deploy the Edge Function — either:
+   - **Dashboard**: Edge Functions → New Function → name it
+     `decrypt-invite-email` → paste the contents of
+     `supabase/functions/decrypt-invite-email/index.ts` → Deploy. No secrets
+     to configure; `SUPABASE_URL`/`SUPABASE_ANON_KEY`/
+     `SUPABASE_SERVICE_ROLE_KEY` are auto-injected into every Edge Function.
+   - **CLI**: `supabase functions deploy decrypt-invite-email` (requires
+     `supabase login` and the project linked).
+3. Leave the function's default JWT verification ON (don't set `verify_jwt =
+   false` for this one) — it's part of how authorization is enforced.
+
+This is unverified beyond passing build/typecheck — no Edge Function has
+been deployed for this project yet, so the actual decrypt round-trip hasn't
+been exercised against a live function. See
+`docs/REPEATLYOS_SECURITY_MODEL.md` → "Field-level encryption" for what this
+protects and, just as importantly, what it deliberately does not extend to
+and why.
+
 ## Passkey/WebAuthn Login (added 2026-09-10)
 
 Implemented using Supabase Auth's native beta passkey feature (shipped as

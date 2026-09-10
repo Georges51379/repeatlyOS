@@ -93,6 +93,11 @@ export interface BusinessMembership {
   role: MembershipRole;
   permissions: string[];
   status: MembershipStatus;
+  /** Ciphertext at rest (encrypted transparently by a DB trigger — see
+   * supabase/migrations/20260910000004_field_level_encryption.sql). Do not
+   * render this directly; it is only human-readable after going through the
+   * decrypt-invite-email Edge Function, which enforces that the caller is
+   * actually allowed to see it. */
   invited_email: string | null;
   invited_at: string | null;
   accepted_at: string | null;

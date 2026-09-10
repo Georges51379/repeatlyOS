@@ -45,29 +45,76 @@ categories, city/business names, and anything else meant to be publicly
 findable **cannot** be column-encrypted without breaking those requirements;
 they are not secrets to begin with.
 
-The approach adopted going forward, matching how real multi-tenant
-marketplace platforms handle this: rely on platform-level encryption
-(already on) for everything, and add column-level encryption (e.g. Postgres
-`pgcrypto`, or a dedicated searchable-encryption layer for fields that must
-still support exact-match lookups) only for a short, deliberate list of
-genuinely sensitive fields that are never searched, filtered, or publicly
-displayed — customer phone numbers/exact addresses, payment reference
-numbers, and similar PII. No such fields exist yet in the Phase 1 schema
-(Customer/Payment tables are Phase 3/4) — this is the policy to apply when
-those tables are designed, not something retrofitted onto `cities`/
-`businesses` now, since none of the Phase 1 tables hold sensitive PII in the
-first place (they're either public marketplace configuration or membership
-metadata already protected by RLS).
+The approach adopted, matching how real multi-tenant marketplace platforms
+handle this: rely on platform-level encryption (already on) for everything,
+and add column-level encryption only for a short, deliberate list of
+genuinely sensitive fields that are never searched, filtered, joined on, or
+publicly displayed. **Confirmed with the user (2026-09-10, reaffirmed
+2026-09-10 after a follow-up request to encrypt "all" data):** this scoped
+approach is the accepted policy. Blanket table/column encryption was tried
+in reasoning through it a second time and rejected again, concretely, not
+just in principle — see "Why this can't be blanket" below, which uses the
+tenant-isolation test actually run against the live project as evidence.
 
-**Confirmed with the user (2026-09-10):** this scoped approach — platform
-encryption for everything, column-level encryption only for genuinely
-sensitive PII/financial fields once those tables exist — is the accepted
-policy, not an open question. No specific compliance mandate (PCI-DSS,
-HIPAA, etc.) is driving this; apply it as a general best practice when
-Customer/Payment/StaffMember tables are designed in Phase 3/4: identify
-which of their columns are sensitive-and-never-searched (encrypt those) vs.
-used for display, filtering, or joins (leave as plaintext, protected by RLS
-and platform encryption).
+### Field-level encryption: implemented pattern (2026-09-10)
+
+`business_memberships.invited_email` (a pending staff invitee's email
+address) is the first real sensitive field in the schema, and is now
+genuinely encrypted at the column level — not just at the platform level:
+
+- `supabase/migrations/20260910000004_field_level_encryption.sql`:
+  - A symmetric key generated once and stored in Supabase Vault
+    (`vault.secrets`), itself only readable by `postgres`/`service_role`.
+  - `encrypt_pii(text)` / `decrypt_pii(text)`: `pgcrypto`-based (`pgp_sym_*`),
+    `security definer` functions in the `public` schema with **EXECUTE
+    revoked from `anon` and `authenticated`, granted only to
+    `service_role`**. A browser calling `supabase.rpc('decrypt_pii', ...)`
+    with a normal user session gets a permission-denied error; only a
+    trusted server context holding the service_role key can ever decrypt.
+  - `encrypt_invited_email_trigger`: a `BEFORE INSERT OR UPDATE` trigger that
+    transparently encrypts `invited_email` the moment it's written, via
+    *any* path (a plain owner/manager REST insert, a future admin tool,
+    anything) — so there is no write path that can accidentally store this
+    field in plaintext. Idempotent against re-saves (detects already-
+    encrypted values by attempting to decrypt them first).
+- `supabase/functions/decrypt-invite-email/index.ts` (Edge Function): the
+  "decrypted for frontend" half. It re-runs the read **as the caller**
+  (their own JWT against the normal REST API — RLS decides if they're even
+  allowed to see this row, reusing the exact same `memberships_read` policy
+  enforced everywhere else, not a re-implementation of that logic), and only
+  if that succeeds does it call `decrypt_pii` via a service-role client to
+  return the plaintext. **Not deployed or verified yet** — deploying an Edge
+  Function requires either the Supabase CLI (`supabase functions deploy
+  decrypt-invite-email`) or the Dashboard's Edge Functions UI (paste the
+  file directly), neither of which this assistant has access to. See
+  Migration Plan for deployment steps.
+
+This is the concrete template to reuse for every future genuinely-sensitive
+field (customer phone/address, payment references, etc. in Phase 3/4):
+ciphertext column + auto-encrypt trigger + one Edge Function per read path
+that needs plaintext, gated by RLS-based authorization it doesn't
+reimplement.
+
+### Why this can't be blanket — using the test we actually ran as evidence
+
+The master-prompt §37 tenant-isolation test (two businesses, confirm A can
+never read/mutate B's data) was run for real against the live project on
+2026-09-10 and passed — see `docs/REPEATLYOS_PROGRESS.md`. It passed
+*because* Postgres could evaluate `businesses_read`'s policy — specifically
+`city_id`, `status`, and `marketplace_visible` — in plaintext, at query time,
+for every row, to decide what's visible to whom. If those columns were
+encrypted, Postgres could not evaluate `city_id = target_city_id` or
+`status = 'active'` against ciphertext at all without decrypting first — and
+the only way to make decryption available to a query deciding *who can see
+what* would be to hand the decryption key to the very role RLS is supposed
+to be restricting, which defeats the mechanism entirely (the decryption
+step itself would need to already know the authorization answer, which is
+what RLS exists to compute). This is not a performance inconvenience to
+work around later; it is a structural contradiction between "encrypt the
+column RLS reads" and "let RLS decide who can read it." The same argument
+applies to `slug`, `name`, `category`, `business_type_key`, and anything
+else the public marketplace search/SEO pages (master-prompt §14/§17/§35)
+need to read in plaintext to function at all.
 
 ## Where tenant isolation is actually enforced
 
@@ -136,6 +183,61 @@ re-checks the RLS policies above on every request. This is the master-prompt
 §26 principle applied concretely: authorization must hold even against a
 client that ignores the UI entirely.
 
+## SQL injection
+
+Structurally prevented today, not just "we're careful": every current data
+access path is either PostgREST (Supabase's autogenerated REST API, which
+builds parameterized queries from URL/query-string filters — it does not
+construct SQL from string concatenation) or `supabase-js`'s query builder
+(`.eq()`, `.select()`, etc., which compiles to the same parameterized REST
+calls). There is no raw SQL string-building anywhere in this codebase, and no
+`pg`/database driver used directly from application code.
+
+**Hard rule for future work** (Phase 6 marketplace search, and any future
+Postgres function taking free-text input): never build a query by
+concatenating user input into a SQL string. Use parameterized filters
+(`.ilike()`, `.textSearch()`, `$1`-style placeholders inside `plpgsql`
+functions) exclusively. If a future search feature ever needs dynamic SQL
+inside a Postgres function (e.g. `EXECUTE format(...)`), every interpolated
+identifier/value must go through `format('%I', ...)` / `format('%L', ...)`
+or a bound parameter — never raw string interpolation of request input.
+
+## Clickjacking
+
+Added 2026-09-10: `X-Frame-Options: DENY` and `Content-Security-Policy:
+frame-ancestors 'none'` (plus `X-Content-Type-Options: nosniff` and
+`Referrer-Policy: strict-origin-when-cross-origin`), so the app refuses to
+render inside a frame/iframe on any other site. Configured in
+`vite.config.ts` (`server.headers`/`preview.headers`, covers local dev and
+`vite preview`) and `public/_headers` (Netlify/Cloudflare Pages convention —
+takes effect automatically if deployed to either; a different host needs the
+same headers configured in its own way, e.g. `vercel.json`, nginx
+`add_header`).
+
+## IDs in responses / console
+
+Two different concerns get conflated under "don't expose IDs" — worth being
+precise about which is actually mitigated:
+
+- **Enumerable/guessable IDs** (old-style sequential integers, where knowing
+  one customer's ID lets you guess the next one exists) — already avoided:
+  every primary key in this schema is a `uuid default gen_random_uuid()`,
+  not a sequence. There is nothing to enumerate.
+- **A resource's ID appearing in a network response at all** — this is not
+  something that can be removed without a fundamentally different
+  architecture (the frontend genuinely needs `business.id` to know which
+  business's data to query next, `product.id` to add to a cart, etc.), and
+  removing it wouldn't add real security: the tenant-isolation test actually
+  run against this project (see Progress log) proves that knowing another
+  tenant's UUID grants no access to their data at all — RLS, not secrecy of
+  the ID, is what protects it. If a specific concern prompted this (e.g.
+  worry about a particular field), name it and it can be addressed
+  precisely; a blanket "no IDs anywhere" isn't a coherent target for a REST
+  API a browser has to operate against.
+- Checked (2026-09-10): only one `console.*` call exists in the whole
+  frontend (`AuthContext.tsx`, logging a Supabase error object on membership
+  fetch failure — no tokens, no raw user records, no secrets in it).
+
 ## What is explicitly NOT covered yet
 
 - No rate limiting configured (master-prompt §26) — revisit in Phase 9
@@ -145,12 +247,11 @@ client that ignores the UI entirely.
   master-prompt §30) has nothing to apply to yet — will be added alongside
   Supabase Storage bucket configuration when logo/product-image upload is
   built.
-- No automated tenant-isolation tests exist yet (master-prompt §37) — there
-  is no live Supabase project to test against. Once one exists, the first
-  test to write is exactly the one master-prompt §37 calls "most important":
-  create two businesses under two different users, and assert user A's
-  Supabase session can never SELECT/UPDATE a row belonging to business B's
-  memberships/products/orders/etc.
+- The master-prompt §37 tenant-isolation test **has been run for real**
+  against the live project (2026-09-10) — see `docs/REPEATLYOS_PROGRESS.md`
+  for the exact checks and results. Still missing: an *automated* test suite
+  running this on every change, rather than a one-off manual verification —
+  add this in Phase 9 hardening (or sooner, once a test framework is chosen).
 - Audit log writes (`audit_logs` insert policy) are permitted from the
   client today, self-attributed (`actor_user_id = auth.uid()`). This is
   weaker than a trusted server writing audit rows itself (a compromised
