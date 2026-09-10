@@ -607,16 +607,76 @@
     - All test data (2 businesses, 1 auth user) deleted afterward.
   - **This completes Phase 6.**
 
+## Phase 7 — Platform & City Administration
+
+- Most of the RLS/data model for this phase already existed from Phase 1
+  (`platform_admins`, `city_admins`, `is_city_admin()` already treats a
+  platform admin as passing every city-scoped check, `audit_logs` table).
+  What was missing was: a way to find a user to grant `city_admin` to, real
+  audit logging for business status changes, and the actual admin UI.
+- `20260910000017_admin_foundations.sql`:
+  - Added `profiles.email` (backfilled from `auth.users`), and updated
+    `handle_new_user()` to populate it going forward, so a platform admin
+    can look up a user by email instead of needing a raw `user_id`.
+    `profiles` already allowed platform-admin reads of all rows
+    (`profiles_select_own: id = auth.uid() OR is_platform_admin()`), so no
+    RLS change was needed for this to be readable.
+  - Added an `audit_business_status_change()` trigger on `businesses` (after
+    update, fires only when `status` actually changes) that writes to
+    `audit_logs` with the actor, business, city, and a `{from, to}` metadata
+    payload. Implemented as a trigger rather than a client-side insert call
+    specifically so it fires regardless of which UI path changed the status
+    and can't be bypassed by a client that omits the log call.
+- `src/hooks/useAdminRoles.ts` — reads `platform_admins`/`city_admins` for
+  the current user to compute `isPlatformAdmin` / `cityAdminOf`. Documented
+  as a self-check/UX convenience only: RLS is what actually gates every
+  admin action, and both tables are themselves RLS-gated to admins, so an
+  empty result here is indistinguishable from "not an admin" by design.
+- `src/pages/admin/PlatformAdminDashboard.tsx` (`/platform-admin`):
+  platform-wide counts (cities, businesses by status, orders, bookings —
+  explicitly no MRR/trial/churn metrics, since no billing system exists
+  yet per master-prompt §22's ban on fake production metrics); a
+  pending-business-approval queue with approve/reject buttons; city
+  creation and per-city toggles (open-for-merchants / public-marketplace);
+  a "grant city admin by email" form built on the new `profiles.email`
+  column.
+- `src/pages/admin/CityAdminDashboard.tsx` (`/city-admin/:cityId`):
+  city-scoped business list with approve/suspend/reinstate actions, and a
+  city description editor. Gated so a city admin can only act within their
+  own `cityId` (checked client-side via `useAdminRoles` for UX, enforced
+  server-side by the existing `is_city_admin()` RLS predicate) while a
+  platform admin can reach any city.
+- Both routes added to `src/App.tsx` behind `RequireAuth`, placed before
+  the `/:citySlug` marketplace catch-all route so they aren't swallowed by
+  it. `AppHome.tsx` now shows a banner linking to these dashboards for
+  users who actually hold the corresponding role.
+- `npm run build` passes; `npm run lint` shows no new issues beyond this
+  codebase's existing `react-hooks/set-state-in-effect` pattern, already
+  present in every other async-loading page (Search.tsx, Reminders.tsx,
+  Subscriptions.tsx, Tasks.tsx, etc.).
+- **Not yet live-verified** — pending the user applying
+  `20260910000017_admin_foundations.sql` in the Supabase SQL editor.
+  Planned verification: create a test platform admin and a test city admin
+  via `service_role`, confirm a city admin can manage only their own
+  city's businesses (not another city's), confirm approve/suspend writes
+  the expected `audit_logs` row, confirm a non-admin user gets empty
+  results from `platform_admins`/`city_admins` (i.e. sees no admin UI and
+  cannot act even if they navigated to the URL directly), then delete all
+  test data.
+
 ## In Progress
 
-- Nothing actively in progress; paused after Phase 1 pending the user
-  provisioning a real Supabase project and confirming the auth flow works
-  end-to-end, per Migration Plan → "Required Before Phase 1 Is Testable."
+- Phase 7 admin UI is built and committed but not yet live-verified —
+  waiting on the user to run the new migration before testing against the
+  real Supabase project.
 
 ## Next
 
-- Once Supabase credentials are confirmed working: Phase 2 — merchant
-  onboarding (business registration flow, city + business-type selection,
+- Once Phase 7 is verified: Phase 8 (SaaS entitlements/billing plans for
+  RepeatlyOS itself, separate from a merchant's own customer
+  subscriptions/packages per master-prompt §40), Phase 9 (hardening,
+  including the previously-flagged rate-limiting/CAPTCHA gap on public
+  marketplace insert paths), and Phase 10 (production prep).
   copying `business_types.default_modules` into `business_modules` at
   creation, approval workflow).
 

@@ -19,6 +19,8 @@ import BusinessAnalytics from './pages/business/Analytics';
 import BusinessPayments from './pages/business/Payments';
 import BusinessMemberships from './pages/business/Memberships';
 import BusinessSettings from './pages/business/BusinessSettings';
+import PlatformAdminDashboard from './pages/admin/PlatformAdminDashboard';
+import CityAdminDashboard from './pages/admin/CityAdminDashboard';
 import { MarketplaceCartProvider } from './context/MarketplaceCartContext';
 import MarketplaceLayout from './components/MarketplaceLayout';
 import CityHome from './pages/marketplace/CityHome';
@@ -123,6 +125,22 @@ export default function App() {
             <Route path="memberships" element={<BusinessMemberships />} />
             <Route path="settings" element={<BusinessSettings />} />
           </Route>
+          <Route
+            path="/platform-admin"
+            element={
+              <RequireAuth>
+                <PlatformAdminDashboard />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/city-admin/:cityId"
+            element={
+              <RequireAuth>
+                <CityAdminDashboard />
+              </RequireAuth>
+            }
+          />
           <Route path="/business/elite-carwash" element={<BusinessPublicPage />} />
           <Route path="/demo/setup" element={<DemoSetup />} />
           <Route path="/demo/pitch" element={<PitchPage />} />

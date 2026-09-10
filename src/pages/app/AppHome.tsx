@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Zap, ChevronDown, ChevronUp, LogOut, ShieldCheck, LayoutDashboard } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useAdminRoles } from '../../hooks/useAdminRoles';
 import ModulesPanel from '../../components/ModulesPanel';
 import type { BusinessStatus } from '../../types/domain';
 
@@ -25,6 +26,7 @@ const STATUS_LABEL: Record<BusinessStatus, string> = {
 
 export default function AppHome() {
   const { user, memberships, signOut } = useAuth();
+  const { isPlatformAdmin, cityAdminOf } = useAdminRoles();
   const [expanded, setExpanded] = useState<string | null>(null);
 
   return (
@@ -49,6 +51,26 @@ export default function AppHome() {
         </div>
 
         <p className="text-slate-500 text-sm mb-6">Signed in as {user?.email}</p>
+
+        {(isPlatformAdmin || cityAdminOf.length > 0) && (
+          <div className="mb-6 bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 flex flex-wrap items-center gap-3">
+            <ShieldCheck className="w-4 h-4 text-blue-400 shrink-0" />
+            {isPlatformAdmin && (
+              <Link to="/platform-admin" className="text-sm text-blue-400 hover:text-blue-300 font-medium">
+                Platform Admin dashboard
+              </Link>
+            )}
+            {cityAdminOf.map((cityId) => (
+              <Link
+                key={cityId}
+                to={`/city-admin/${cityId}`}
+                className="text-sm text-blue-400 hover:text-blue-300 font-medium"
+              >
+                City Admin dashboard
+              </Link>
+            ))}
+          </div>
+        )}
 
         {memberships.length === 0 && (
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 text-center">

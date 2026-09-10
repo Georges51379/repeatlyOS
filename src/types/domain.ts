@@ -18,8 +18,17 @@ export interface Profile {
   id: string;
   full_name: string | null;
   avatar_url: string | null;
+  /** Added Phase 7 — lets a platform admin look up a user by email to
+   * grant them city_admin, without needing a raw user_id. */
+  email: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface CityAdminRow {
+  user_id: string;
+  city_id: string;
+  created_at: string;
 }
 
 export interface City {
