@@ -888,18 +888,41 @@ cities existed short of already knowing a `citySlug`.
   and directly answers the user's earlier question about browsing Shekka.
 - `npm run build` passes; no new lint issues beyond the existing
   codebase-wide `set-state-in-effect` pattern.
-- **Not yet live-verified** — pending the user applying
-  `20260910000022_seed_second_city.sql`. Planned verification: confirm
-  both cities appear in the directory/homepage teaser, create a temporary
-  test business+product to confirm the rule-based parser actually matches
-  a real query end-to-end and that the same-region fallback triggers when
-  the matched city has no results, then clean up.
+- **Live-verified (2026-09-10)**, migration applied — Batroun and Shekka
+  both confirmed present. Unit-tested `parseQuery` directly (city + facet +
+  leftover-keyword extraction) against realistic sample vocabulary before
+  touching the database, then set up one approved test business in
+  Batroun with a product ("Pro Basketball Shoe") tagged `brand: Nike`.
+  - `"nike basketball shoes in batroun"` correctly parsed to
+    `city: Batroun, facets: [brand=Nike], keywords: "basketball shoes"`
+    and the resulting query matched the product directly.
+  - `"nike basketball shoes in shekka"` parsed to `city: Shekka`; Shekka
+    alone genuinely had zero results (confirmed independently), which is
+    exactly what triggers the same-region fallback; the fallback query
+    (Batroun, Shekka's only same-region neighbor) found the product —
+    concrete proof of the "shekka, or near shekka if available" behavior
+    the user asked for.
+  - **Found and fixed a real accuracy gap during this verification**: the
+    leftover-keyword filter used plain `ILIKE`, so the shopper's own
+    wording ("basketball shoe**s**") failed to match a product literally
+    named "Basketball Shoe" (singular) — a plural mismatch a human
+    wouldn't even notice but a substring match can't bridge. Switched
+    `smartSearch.ts`'s keyword filter from `ILIKE` to Postgres full-text
+    search (`plfts`, English config, which stems "shoes" → "shoe"),
+    verified live that the exact same query now matches; also hardened
+    `parseQuery` to strip punctuation per word before building the
+    keyword string (a stray comma could otherwise break the PostgREST
+    `or=(...)` filter syntax). `Search.tsx`'s own direct-query ILIKE was
+    left as-is — out of scope for this fix, since it wasn't what broke.
+  - All test data (1 business — cascaded its product/attribute —, its
+    audit-log row, 1 admin grant, 2 auth users) deleted afterward; both
+    real cities left in place.
+  - **This completes the homepage/city-directory/smart-search redesign.**
 
 ## In Progress
 
-- Phase 8 is complete and live-verified. The homepage/city-directory/
-  smart-search redesign is built, pending the user running the new
-  migration before live verification.
+- Phase 8 and the homepage/city-directory/smart-search redesign are both
+  complete and live-verified. Nothing else is actively in progress.
 
 ## Next
 

@@ -73,6 +73,7 @@ export function parseQuery(raw: string, cities: City[], attrValues: AttrValue[])
 
   const keywords = lower
     .split(/\s+/)
+    .map((w) => w.replace(/[^a-z0-9]/g, ''))
     .filter((w) => w && !STOPWORDS.has(w) && !consumedWords.has(w))
     .join(' ')
     .trim();
@@ -108,7 +109,12 @@ async function runProductQuery(cityIds: string[], facets: { key: string; value: 
     query = query.eq(`attr_${i}.key`, f.key).eq(`attr_${i}.value`, f.value);
   });
   if (keywords) {
-    query = query.or(`name.ilike.%${keywords}%,category.ilike.%${keywords}%`);
+    // Full-text search (not ILIKE) so English stemming matches "shoes"
+    // against a product named "Shoe" and vice versa — found live during
+    // verification: a leftover keyword phrase taken verbatim from the
+    // shopper's own wording ("basketball shoes") failed a plain ILIKE
+    // against a product literally named "Basketball Shoe".
+    query = query.or(`name.plfts(english).${keywords},category.plfts(english).${keywords}`);
   }
 
   const { data } = await query;
