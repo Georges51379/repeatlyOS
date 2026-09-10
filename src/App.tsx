@@ -30,6 +30,8 @@ import ProductDetail from './pages/marketplace/ProductDetail';
 import ServiceDetail from './pages/marketplace/ServiceDetail';
 import MarketplaceCart from './pages/marketplace/Cart';
 import LandingPage from './pages/LandingPage';
+import CityDirectory from './pages/CityDirectory';
+import Discover from './pages/marketplace/Discover';
 import BusinessPublicPage from './pages/BusinessPublicPage';
 import DashboardLayout from './components/DashboardLayout';
 import Overview from './pages/dashboard/Overview';
@@ -78,6 +80,8 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<LandingPage />} />
+          <Route path="/cities" element={<CityDirectory />} />
+          <Route path="/discover" element={<Discover />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route

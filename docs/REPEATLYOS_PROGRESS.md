@@ -840,13 +840,71 @@
   scoped in `docs/REPEATLYOS_MIGRATION_PLAN.md` as an explicitly optional
   post-MVP addition, not blocking anything.
 
+## Homepage, City Directory &amp; Smart Search Redesign (2026-09-10, before Phase 9)
+
+Requested directly by the user, ahead of Phase 9: the old landing page was
+entirely the pre-transformation demo pitch (subscription/booking SaaS copy,
+a "Frontend demo — no backend connected" banner that was no longer true,
+and zero mention of the marketplace) and there was no way to discover what
+cities existed short of already knowing a `citySlug`.
+
+- `src/pages/LandingPage.tsx` rewritten: hero states what RepeatlyOS is in
+  one paragraph (a city marketplace for shoppers + the operating system
+  the businesses on it run on), a live city-directory teaser fetched from
+  `cities` right on the homepage, the smart-search bar (below), and a
+  single condensed "for business owners" section — replacing the old
+  multi-section pitch-deck-style page (pain points / engines /
+  before-after / pricing tiers / demo links). The legacy demo routes
+  (`/dashboard`, `/demo/*`, `/business/elite-carwash`, `/customer/portal`)
+  are untouched and still reachable directly — just no longer linked from
+  the homepage, since foregrounding a fully-fake demo dashboard next to a
+  real backend was actively misleading.
+- `src/pages/CityDirectory.tsx` (`/cities`): every `marketplace_enabled`
+  city as a card, linking to `/:citySlug`. Only page that needs to exist
+  for "how do I even find out what cities exist" — previously nothing
+  answered that.
+- **Smart search** (`src/lib/smartSearch.ts` + `src/pages/marketplace/
+  Discover.tsx`, `/discover?q=`): the "type a request, get a
+  recommendation" feature — e.g. "nike basketball shoes in shekka". Rule-
+  based, not LLM-based (user's explicit choice, to avoid an API-key/
+  billing dependency and keep it instant/free):
+  - Matches words in the query against real city names (`cities.name`)
+    and real tagged values already in `product_attributes`, longest/most
+    specific match wins per attribute key (max 3 facets). Leftover
+    non-stopword text becomes a keyword `ILIKE` against product
+    name/category.
+  - Runs the match through the exact same faceted-query pattern
+    `Search.tsx` already uses (aliased `attr_0`/`attr_1`… embeds).
+  - If the matched city has zero results and has a `region`, falls back
+    to other `marketplace_enabled` cities sharing that region, labeled
+    "nearby" in the UI — this is what makes "shekka, or near shekka if
+    available" concrete: region is a real column already on `cities`,
+    not a geo-distance calculation.
+  - With no city recognized in the query at all, searches every
+    marketplace-enabled city at once.
+- `20260910000022_seed_second_city.sql`: adds Shekka (Chekka) as a second
+  city, same region as Batroun ("North Lebanon") — a real neighboring
+  pair, so the "nearby" fallback has a genuine case to demonstrate with,
+  and directly answers the user's earlier question about browsing Shekka.
+- `npm run build` passes; no new lint issues beyond the existing
+  codebase-wide `set-state-in-effect` pattern.
+- **Not yet live-verified** — pending the user applying
+  `20260910000022_seed_second_city.sql`. Planned verification: confirm
+  both cities appear in the directory/homepage teaser, create a temporary
+  test business+product to confirm the rule-based parser actually matches
+  a real query end-to-end and that the same-region fallback triggers when
+  the matched city has no results, then clean up.
+
 ## In Progress
 
-- Phase 8 (SaaS entitlements + faceted product search) is complete and
-  live-verified. Nothing else is actively in progress.
+- Phase 8 is complete and live-verified. The homepage/city-directory/
+  smart-search redesign is built, pending the user running the new
+  migration before live verification.
 
 ## Next
 
+- Live-verify the smart search + city directory once the user runs
+  `20260910000022_seed_second_city.sql`.
 - Phase 9 (hardening — tenant-isolation/authz regression tests, the
   previously-flagged rate-limiting/CAPTCHA gap on public marketplace
   insert paths) and Phase 10 (production prep).
