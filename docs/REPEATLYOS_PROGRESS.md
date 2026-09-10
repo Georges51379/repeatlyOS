@@ -450,11 +450,24 @@
     never writes quantity directly, matching the DB design). Products
     without inventory tracking show "Start tracking" instead of a
     always-on row (not every product needs stock tracking).
-  - **Not yet verified against the live project** — needs the new
-    migration run first; plan is to specifically verify the
-    direct-quantity-write rejection actually fires (attempt a raw PATCH of
-    `quantity` and confirm it errors, not just that the adjust-via-
-    movement path works).
+  - **Verified live end-to-end** (2026-09-10) — no bugs found, and this
+    is the most defense-in-depth test run so far:
+    - A `+10` restock movement correctly brought quantity to 10; a `-3`
+      sale movement correctly brought it to 7.
+    - A `-100` movement (would take stock negative) was rejected by the
+      `quantity >= 0` check constraint, and — critically — the movement
+      row itself was NOT left orphaned (confirmed via admin key): the
+      trigger chain rolled back atomically, exactly as a single Postgres
+      statement should.
+    - **The specific gap this design closes**: a raw `PATCH
+      inventory_items?id=eq...  {"quantity": 9999}` was rejected outright
+      with the custom error `"quantity can only be changed by inserting an
+      inventory_movements row, not updated directly"`, and the value
+      stayed untouched — proving the second trigger genuinely closes the
+      column-level hole that RLS alone would have left open.
+    - Cross-tenant isolation and permission-gated writes (`inventory.adjust`
+      required, staff blocked without it) both confirmed as usual.
+    - All test data (1 business, 3 auth users) deleted afterward.
 
 ## In Progress
 
