@@ -324,6 +324,32 @@
       two permissions are genuinely independent, not accidentally coupled.
     - All test data (2 businesses, 3 auth users) deleted afterward.
 
+- **Phase 3 — fourth real domain: Analytics (2026-09-10):**
+  - `supabase/migrations/20260910000009_analytics.sql`: two aggregation
+    functions, `business_analytics_summary` and `business_top_services`.
+    Deliberately plain `language sql` functions (no `security definer`) —
+    Postgres defaults to SECURITY INVOKER, meaning every query inside still
+    runs under the CALLER's own RLS, not elevated privileges. A non-member
+    querying a business they don't belong to gets zeros/empty rows (RLS
+    filters the underlying tables to nothing), never another tenant's
+    numbers or an error that reveals the business exists. Chose this over a
+    SQL VIEW deliberately — a plain view's owner-vs-invoker permission
+    semantics vary by Postgres version and are easy to get subtly wrong in
+    a way that silently bypasses RLS; a security-invoker function has no
+    such ambiguity.
+  - `revenue_estimate` is computed from completed bookings' linked service
+    price — explicitly labeled "Estimated revenue" in the UI, not a real
+    transaction ledger (no Payments/Orders table exists yet), per
+    master-prompt §34: "Do not claim financial accuracy unless underlying
+    data supports it."
+  - `pages/business/Analytics.tsx`: stat cards (customers, bookings by
+    status, tasks by state) + top-5-services-by-bookings list, all
+    server-aggregated, none of it computed client-side from raw rows.
+  - **Not yet verified against the live project** — needs the new
+    migration run first; plan is to specifically verify the RLS-via-
+    invoker behavior (a non-member of a business gets zeros, not another
+    tenant's real numbers).
+
 ## In Progress
 
 - Nothing actively in progress; paused after Phase 1 pending the user

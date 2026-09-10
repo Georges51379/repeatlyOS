@@ -12,6 +12,7 @@ import RealCustomers from './pages/business/Customers';
 import RealTasks from './pages/business/Tasks';
 import BusinessServices from './pages/business/Services';
 import BusinessBookings from './pages/business/Bookings';
+import BusinessAnalytics from './pages/business/Analytics';
 import BusinessSettings from './pages/business/BusinessSettings';
 import LandingPage from './pages/LandingPage';
 import BusinessPublicPage from './pages/BusinessPublicPage';
@@ -101,6 +102,7 @@ export default function App() {
             <Route path="services" element={<BusinessServices />} />
             <Route path="bookings" element={<BusinessBookings />} />
             <Route path="tasks" element={<RealTasks />} />
+            <Route path="analytics" element={<BusinessAnalytics />} />
             <Route path="settings" element={<BusinessSettings />} />
           </Route>
           <Route path="/business/elite-carwash" element={<BusinessPublicPage />} />
