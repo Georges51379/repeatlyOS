@@ -43,14 +43,22 @@ $$;
 -- calling supabase.rpc('decrypt_pii', ...) with the anon/user JWT gets a
 -- permission-denied error; only a trusted server context (the Edge
 -- Function, which alone holds the service_role key) can ever decrypt.
+-- search_path includes `extensions` because that's where Supabase installs
+-- pgcrypto by default (NOT `public`) — confirmed by testing against the live
+-- project: without it, `pgp_sym_encrypt`/`pgp_sym_decrypt` fail with
+-- "function ... does not exist", since these functions' search_path is
+-- deliberately narrow (a security choice, to avoid search-path-hijacking)
+-- and doesn't fall back to the session's ambient default. Calls are also
+-- explicitly schema-qualified (`extensions.pgp_sym_*`) so this doesn't
+-- depend on search_path ordering at all.
 create or replace function public.encrypt_pii(plaintext text)
 returns text
 language sql
 stable
-security definer set search_path = public
+security definer set search_path = public, extensions
 as $$
   select case when plaintext is null then null
-    else encode(pgp_sym_encrypt(plaintext, public.pii_key()), 'base64')
+    else encode(extensions.pgp_sym_encrypt(plaintext, public.pii_key()), 'base64')
   end;
 $$;
 
@@ -58,10 +66,10 @@ create or replace function public.decrypt_pii(ciphertext text)
 returns text
 language sql
 stable
-security definer set search_path = public
+security definer set search_path = public, extensions
 as $$
   select case when ciphertext is null then null
-    else pgp_sym_decrypt(decode(ciphertext, 'base64'), public.pii_key())
+    else extensions.pgp_sym_decrypt(decode(ciphertext, 'base64'), public.pii_key())
   end;
 $$;
 
@@ -108,6 +116,8 @@ begin
   return new;
 end;
 $$;
+
+drop trigger if exists encrypt_invited_email_trigger on public.business_memberships;
 
 create trigger encrypt_invited_email_trigger
   before insert or update of invited_email on public.business_memberships

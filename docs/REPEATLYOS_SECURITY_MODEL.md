@@ -89,6 +89,20 @@ genuinely encrypted at the column level — not just at the platform level:
   file directly), neither of which this assistant has access to. See
   Migration Plan for deployment steps.
 
+**Bug found and fixed by the user actually running this migration
+(2026-09-10):** `pgp_sym_encrypt`/`pgp_sym_decrypt` failed with "function ...
+does not exist" — Supabase installs `pgcrypto` into the `extensions` schema
+by default, not `public`, and `encrypt_pii`/`decrypt_pii`'s `search_path`
+was deliberately narrowed to just `public` (to avoid search-path-hijacking
+risk), which excluded it. Fixed in place in the same migration file (it had
+never successfully applied anywhere, so there was nothing to leave a
+historical scar for) by adding `extensions` to the search_path and
+explicitly schema-qualifying the calls (`extensions.pgp_sym_encrypt`/
+`extensions.pgp_sym_decrypt`) so it no longer depends on search_path
+ordering at all. Every statement in that migration is idempotent
+(`create or replace`, `if not exists`, `drop trigger if exists` before
+`create trigger`), so re-running the whole corrected file is safe.
+
 This is the concrete template to reuse for every future genuinely-sensitive
 field (customer phone/address, payment references, etc. in Phase 3/4):
 ciphertext column + auto-encrypt trigger + one Edge Function per read path
