@@ -76,6 +76,12 @@ export interface Business {
   opening_hours: Record<string, unknown>;
   social_links: Record<string, unknown>;
   delivery_config: DeliveryConfig;
+  /** Set automatically at insert time (default auth.uid()) — see
+   * supabase/migrations/20260910000003_fix_business_insert_returning.sql for
+   * why this exists: it's what makes a freshly-created business immediately
+   * visible to its creator without depending on a same-transaction trigger
+   * side effect in another table. */
+  created_by: string | null;
   created_at: string;
   updated_at: string;
 }

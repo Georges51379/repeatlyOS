@@ -67,6 +67,28 @@ copy step is implemented in the application layer during onboarding, Phase 2
   today, expected to hold a Supabase Storage public URL once upload flows
   exist.
 
+## A real bug found by live testing (2026-09-10)
+
+`businesses.created_by` (migration `20260910000003_fix_business_insert_returning.sql`)
+exists because of a genuine Postgres RLS behavior, not a hypothetical:
+`INSERT ... RETURNING` re-checks the table's SELECT policy against the row
+just inserted, and — unlike UPDATE/DELETE, which just silently omit a row
+that fails that check from their RETURNING output — INSERT raises "new row
+violates row-level security policy" if it fails. `businesses_read`'s original
+policy depended on `is_business_member(id)`, which itself depends on a row
+the `on_business_created` trigger inserts into a *different* table
+(`business_memberships`) within the same statement. Whether that
+trigger-created row is visible in time for the RETURNING-clause's policy
+check turned out not to be guaranteed — confirmed empirically: a bare
+`INSERT` (no `Prefer: return=representation`) succeeded every time, while
+`INSERT ... RETURNING` failed every time, isolating the cause precisely.
+Fix: `created_by uuid default auth.uid()` on the same row being inserted, so
+the SELECT policy can trust it directly with no cross-table, same-transaction
+timing dependency. Any future table where a row's own creator needs
+immediate read-back access after an insert-with-trigger-side-effects should
+use this same pattern rather than relying solely on a policy that reads a
+table populated by a trigger on the same statement.
+
 ## Conventions used throughout
 
 - Every table has `created_at`; every mutable table has `updated_at`

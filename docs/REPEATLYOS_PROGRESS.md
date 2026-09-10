@@ -79,6 +79,24 @@
   blanket column-level encryption of searchable/public fields would break
   marketplace search and SEO requirements from the master prompt.
 
+- **Phase 1 verified live, end-to-end** (2026-09-10): user provided real
+  Supabase project credentials (anon key only used in `.env`; a mislabeled
+  service_role key was flagged and used transiently, never persisted, only
+  for admin-only test setup — see conversation). Ran migrations + seed
+  against the live project. Found and fixed a real RLS/RETURNING bug (see
+  Database Model doc) via a new migration
+  (`20260910000003_fix_business_insert_returning.sql`), applied by the user.
+  Then ran the master-prompt §37 test for real, via direct REST calls against
+  the live project (two real signed-up-and-confirmed test users, two real
+  businesses): confirmed User A's session (1) lists only their own business,
+  (2) gets an empty result fetching Business B by id directly, (3) a
+  URL-tampering UPDATE attempt against Business B affects 0 rows, (4) cannot
+  read Business B's memberships, and (5) an independent admin-level check
+  confirms Business B's data was genuinely untouched. All test data (2
+  businesses, 2 auth users) deleted afterward — the live project is clean.
+  **This is the first Phase 1 claim in this log backed by a real database
+  test, not just a passing build.**
+
 ## In Progress
 
 - Nothing actively in progress; paused after Phase 1 pending the user
