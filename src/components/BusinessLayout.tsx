@@ -1,5 +1,16 @@
 import { Link, NavLink, Navigate, Outlet } from 'react-router-dom';
-import { Zap, Users, KanbanSquare, Wrench, CalendarClock, BarChart3, Settings as SettingsIcon, ArrowLeft } from 'lucide-react';
+import {
+  Zap,
+  Users,
+  KanbanSquare,
+  Wrench,
+  CalendarClock,
+  BarChart3,
+  Receipt,
+  Package,
+  Settings as SettingsIcon,
+  ArrowLeft,
+} from 'lucide-react';
 import { useCurrentBusiness } from '../hooks/useCurrentBusiness';
 import { useEnabledModules } from '../hooks/useEnabledModules';
 import { useAuth } from '../context/AuthContext';
@@ -9,6 +20,8 @@ const NAV_ITEMS = [
   { key: 'services', label: 'Services', icon: Wrench, path: 'services' },
   { key: 'bookings', label: 'Bookings', icon: CalendarClock, path: 'bookings' },
   { key: 'tasks', label: 'Tasks', icon: KanbanSquare, path: 'tasks' },
+  { key: 'subscriptions', label: 'Packages & Subscriptions', icon: Package, path: 'memberships' },
+  { key: 'payments', label: 'Payments', icon: Receipt, path: 'payments' },
   { key: 'analytics', label: 'Analytics', icon: BarChart3, path: 'analytics' },
 ];
 

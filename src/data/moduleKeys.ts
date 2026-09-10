@@ -18,6 +18,15 @@ export const MODULE_KEYS = [
   'audit_logs',
   'advanced_reports',
   'multi_branch',
+  // Added 2026-09-10: these three were already used in
+  // supabase/seed.sql's business_types.default_modules (payments,
+  // delivery) or in the master-prompt §11 example toggle UI
+  // (subscriptions), but missing here — meaning a business seeded with
+  // e.g. barber's defaults had a "payments" module silently enabled with
+  // no way to ever see or toggle it in Settings. Fixed by adding them.
+  'payments',
+  'delivery',
+  'subscriptions',
 ] as const;
 
 export type ModuleKey = (typeof MODULE_KEYS)[number];

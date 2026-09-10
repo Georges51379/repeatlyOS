@@ -359,6 +359,39 @@
       RLS per-caller rather than leaking another tenant's real numbers.
     - Test data (1 business, 2 auth users) deleted afterward.
 
+- **Phase 3 — final two domains, closing out the phase (2026-09-10):**
+  - Fixed a real gap noticed while starting this batch: `MODULE_KEYS`
+    (drives the Settings toggle UI and sidebar gating) was missing
+    `payments`, `delivery`, and `subscriptions` — all three already used in
+    `seed.sql`'s `business_types.default_modules` (e.g. barber's defaults
+    include `payments`), meaning those defaults were silently enabled with
+    no way to ever see or toggle them in the UI. Added all three.
+  - `supabase/migrations/20260910000010_payments_and_memberships.sql`:
+    - `payments`: read is gated by `finance.view` specifically (not "any
+      active member" the way Customers/Services/Bookings are) — money is
+      more sensitive than contact info, and master-prompt §7 lists
+      `finance.view` as its own distinct permission for exactly this
+      reason. Write gated by `finance.manage`.
+    - `customer_memberships`: master-prompt §40's "CustomerMembership" —
+      a merchant selling a recurring plan or session package to their OWN
+      customer, deliberately named and modeled distinctly from a future
+      `BusinessSaaSSubscription` (Phase 8, RepeatlyOS billing a business)
+      so the two domains can never be confused. Read open to any member
+      (front-desk staff need to check "sessions remaining" routinely);
+      write gated by `finance.manage` (selling a plan is a financial act).
+  - `pages/business/Payments.tsx`: the first page in this project where
+    read access itself is permission-gated — explicitly distinguishes "no
+    access" (a lock icon + ask-the-owner message) from "genuinely no
+    payments yet", rather than showing a misleading empty state either way.
+  - `pages/business/Memberships.tsx`: sell a package (fixed sessions) or
+    subscription (recurring) to a customer, track sessions used vs. total.
+  - Nav items added, module-gated as usual (`payments`, `subscriptions`).
+  - **Not yet verified against the live project** — needs the new
+    migration run first. Plan: verify `finance.view` gates Payments read
+    (not just write, unlike every other domain so far), and that
+    `customer_memberships` read stays open to any member while write stays
+    gated.
+
 ## In Progress
 
 - Nothing actively in progress; paused after Phase 1 pending the user

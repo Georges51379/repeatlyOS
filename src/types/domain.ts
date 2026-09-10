@@ -177,6 +177,44 @@ export interface Booking {
   updated_at: string;
 }
 
+export type PaymentMethod = 'cash' | 'whish' | 'omt' | 'bank_transfer' | 'pay_at_store';
+export type PaymentStatus = 'pending' | 'paid' | 'partial' | 'refunded';
+
+export interface Payment {
+  id: string;
+  business_id: string;
+  customer_id: string | null;
+  booking_id: string | null;
+  amount: number;
+  method: PaymentMethod;
+  status: PaymentStatus;
+  reference: string | null;
+  notes: string | null;
+  paid_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type MembershipPlanType = 'package' | 'subscription';
+export type CustomerMembershipStatus = 'active' | 'expired' | 'cancelled' | 'paused';
+
+export interface CustomerMembership {
+  id: string;
+  business_id: string;
+  customer_id: string;
+  plan_type: MembershipPlanType;
+  plan_name: string;
+  price: number | null;
+  billing_interval: string | null;
+  sessions_total: number | null;
+  sessions_used: number;
+  status: CustomerMembershipStatus;
+  starts_at: string;
+  ends_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AuditLogEntry {
   id: string;
   actor_user_id: string | null;
