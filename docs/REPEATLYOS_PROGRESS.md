@@ -202,6 +202,22 @@
     - All test data (business, memberships, modules, 2 auth users) deleted
       afterward.
 
+- **Both remaining loose ends closed and verified live** (2026-09-10):
+  - `decrypt-invite-email` Edge Function deployed and fully round-trip
+    tested: owner gets the real decrypted email; a completely unrelated
+    user (no membership on that business) gets `404 Not found` — proving
+    the RLS-based authorization inside the function actually holds, not
+    just compiles. Test data cleaned up.
+  - Passkeys enabled in the Supabase dashboard — confirmed via
+    `GET /auth/v1/settings` (`passkeys_enabled: true`) and by requesting
+    real registration options for a signed-in test user, which returned a
+    fully valid WebAuthn options payload with the correct `rp.id`
+    (`localhost`) and `rp.name` (`repeatlyos`). The actual browser ceremony
+    (`navigator.credentials.create()`/`.get()`) has no REST equivalent, so
+    a manual test in a real browser is still the only way to confirm sign-
+    in-with-a-passkey works end-to-end — everything checkable from the
+    server side is confirmed correct.
+
 ## In Progress
 
 - Nothing actively in progress; paused after Phase 1 pending the user

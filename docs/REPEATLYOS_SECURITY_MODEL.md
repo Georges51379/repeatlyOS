@@ -13,8 +13,19 @@
   Supabase requires an existing confirmed user before one can be registered
   (`registerPasskey()`, from `/account/security`). See
   `docs/REPEATLYOS_MIGRATION_PLAN.md` → "Passkey/WebAuthn Login" for the full
-  writeup, dashboard configuration required, and the explicit caveat that
-  this is unverified beta functionality with no live project to test against.
+  writeup and dashboard configuration required. **Server-side config
+  confirmed live (2026-09-10)**: `GET /auth/v1/settings` reports
+  `passkeys_enabled: true`, and requesting real registration options for a
+  signed-in test user returned a fully valid `PublicKeyCredentialCreationOptions`
+  payload with `rp.id: "localhost"` and `rp.name: "repeatlyos"` matching the
+  configured values, `authenticatorSelection.residentKey: "required"`
+  (discoverable credentials — what makes passwordless sign-in possible), and
+  a real challenge. **Still not verifiable end-to-end by this assistant**:
+  completing the ceremony requires `navigator.credentials.create()` in an
+  actual browser with a real or platform authenticator, which has no REST
+  equivalent — a genuine manual test (sign in, go to `/account/security`,
+  add a passkey, sign out, sign back in with only the passkey) is the only
+  way to confirm the full flow works.
 
 ## Data Encryption
 
@@ -83,16 +94,14 @@ genuinely encrypted at the column level — not just at the platform level:
   allowed to see this row, reusing the exact same `memberships_read` policy
   enforced everywhere else, not a re-implementation of that logic), and only
   if that succeeds does it call `decrypt_pii` via a service-role client to
-  return the plaintext. **Confirmed not yet deployed** (2026-09-10) — called
-  it live and got `404 {"code":"NOT_FOUND"}`, the expected response for an
-  undeployed function, not an error in the function itself. Deploying it
-  requires either the Supabase CLI (`supabase functions deploy
-  decrypt-invite-email`) or the Dashboard's Edge Functions UI (paste the
-  file directly), neither of which this assistant has access to. See
-  Migration Plan for deployment steps. Once deployed, re-test: everything
-  upstream of it (encryption, the trigger, the RLS-based authorization it
-  will lean on) is confirmed working, so a failure at that point would be
-  Edge-Function-specific (e.g. a missing/renamed env var).
+  return the plaintext. **Deployed and fully verified live (2026-09-10)**:
+  created a real business + a real staff invite with a plaintext
+  `invited_email`; calling the function as the business owner returned the
+  correct decrypted plaintext; calling it as a completely unrelated user
+  (no membership on that business at all) returned `404 {"error":"Not
+  found"}` — the RLS-based authorization inside the function genuinely
+  blocks unauthorized callers, not just in the abstract. All test data
+  deleted afterward.
 
 **Schema gap noticed while testing, to fix when the real staff-invite UI is
 built (Phase 3):** `business_memberships.user_id` is `not null`, which means
