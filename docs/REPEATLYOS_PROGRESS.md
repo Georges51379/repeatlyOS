@@ -345,10 +345,19 @@
   - `pages/business/Analytics.tsx`: stat cards (customers, bookings by
     status, tasks by state) + top-5-services-by-bookings list, all
     server-aggregated, none of it computed client-side from raw rows.
-  - **Not yet verified against the live project** — needs the new
-    migration run first; plan is to specifically verify the RLS-via-
-    invoker behavior (a non-member of a business gets zeros, not another
-    tenant's real numbers).
+  - **Verified live end-to-end** (2026-09-10) — no bugs found, including
+    the specific security property this design depends on:
+    - Seeded a business with 2 customers, 1 service ($20), 3 bookings
+      (2 completed, 1 pending), 1 open task. Owner's summary matched
+      exactly: `total_customers: 2`, `completed_bookings: 2`,
+      `revenue_estimate: 40.00`, `tasks_open: 1`. Top services correctly
+      showed the one service with a count of 3.
+    - **The critical test**: a second owner (not a member of that
+      business) called the exact same functions with that business's id
+      and got all zeros for the summary and an empty array for top
+      services — confirmed the SECURITY INVOKER design genuinely enforces
+      RLS per-caller rather than leaking another tenant's real numbers.
+    - Test data (1 business, 2 auth users) deleted afterward.
 
 ## In Progress
 
