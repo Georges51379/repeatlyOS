@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { ShieldCheck, Check, X, Plus, Fingerprint, Trash2 } from 'lucide-react';
+import { ShieldCheck, Check, X, Plus, Fingerprint, Trash2, Copy } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useAdminRoles } from '../../hooks/useAdminRoles';
 import type { Business, BusinessSaasSubscription, City, SaasPlan, SignupRequest } from '../../types/domain';
 import type { PasskeyListItem } from '@supabase/supabase-js';
+
+interface GeneratedInvite {
+  name: string;
+  email: string;
+  code: string;
+  link: string;
+}
 
 interface Counts {
   cities: number;
@@ -31,7 +38,7 @@ async function countBusinessesByStatus(status: string) {
 
 export default function PlatformAdminDashboard() {
   const { isPlatformAdmin, loading: rolesLoading } = useAdminRoles();
-  const { requestSignupCode, adminListPasskeys, adminRevokePasskey } = useAuth();
+  const { adminGenerateInvite, adminListPasskeys, adminRevokePasskey } = useAuth();
   const [counts, setCounts] = useState<Counts | null>(null);
   const [pending, setPending] = useState<Business[]>([]);
   const [cities, setCities] = useState<City[]>([]);
@@ -41,12 +48,15 @@ export default function PlatformAdminDashboard() {
   const [signupRequests, setSignupRequests] = useState<SignupRequest[]>([]);
   const [newCityName, setNewCityName] = useState('');
   const [newCitySlug, setNewCitySlug] = useState('');
-  const [assignEmail, setAssignEmail] = useState('');
-  const [assignCityId, setAssignCityId] = useState('');
+  const [newAdminName, setNewAdminName] = useState('');
+  const [newAdminEmail, setNewAdminEmail] = useState('');
+  const [newAdminCityId, setNewAdminCityId] = useState('');
+  const [creatingAdmin, setCreatingAdmin] = useState(false);
   const [passkeyEmail, setPasskeyEmail] = useState('');
   const [passkeyUser, setPasskeyUser] = useState<{ id: string; email: string } | null>(null);
   const [managedPasskeys, setManagedPasskeys] = useState<PasskeyListItem[]>([]);
   const [passkeyBusy, setPasskeyBusy] = useState(false);
+  const [invite, setInvite] = useState<GeneratedInvite | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -138,31 +148,34 @@ export default function PlatformAdminDashboard() {
     await load();
   };
 
-  const assignCityAdmin = async () => {
-    if (!assignEmail.trim() || !assignCityId) {
-      setError('Email and city are both required.');
+  const createCityAdmin = async () => {
+    if (!newAdminName.trim() || !newAdminEmail.trim() || !newAdminCityId) {
+      setError('Name, email, and city are all required.');
       return;
     }
     setError(null);
     setNotice(null);
-    const { data: profileRows, error: lookupError } = await supabase
-      .from('profiles')
-      .select('id, email')
-      .eq('email', assignEmail.trim())
-      .maybeSingle();
-    if (lookupError || !profileRows) {
-      setError('No user found with that email (they must have signed up at least once).');
+    setInvite(null);
+    setCreatingAdmin(true);
+    // Creates the account (if it doesn't exist yet) and grants city_admin
+    // for the selected city in one call — city admins never self-register,
+    // this is the only way the role is ever granted. Nothing is emailed;
+    // the returned code/link is shown below for you to relay yourself.
+    const { code, link, error: inviteError } = await adminGenerateInvite(
+      newAdminEmail.trim(),
+      newAdminName.trim(),
+      newAdminCityId,
+    );
+    setCreatingAdmin(false);
+    if (inviteError || !code || !link) {
+      setError(inviteError ?? 'Failed to generate invite.');
       return;
     }
-    const { error: insertError } = await supabase
-      .from('city_admins')
-      .insert({ user_id: profileRows.id, city_id: assignCityId });
-    if (insertError) {
-      setError(insertError.message);
-      return;
-    }
-    setNotice(`Granted city admin to ${assignEmail.trim()}.`);
-    setAssignEmail('');
+    setInvite({ name: newAdminName.trim(), email: newAdminEmail.trim(), code, link });
+    setNewAdminName('');
+    setNewAdminEmail('');
+    setNewAdminCityId('');
+    await load();
   };
 
   const changePlan = async (businessId: string, planKey: string) => {
@@ -177,19 +190,21 @@ export default function PlatformAdminDashboard() {
 
   const approveSignup = async (request: SignupRequest) => {
     setError(null);
-    // Creates the auth account (if it doesn't already exist) and emails
-    // them a one-time sign-in code/link — this is the first moment the
-    // requester gets anything usable, and it's triggered by a human
-    // approving them, not by anything they did themselves.
-    const { error: codeError } = await requestSignupCode(request.email, request.full_name);
-    if (codeError) {
-      setError(codeError);
+    setInvite(null);
+    // Creates the auth account (if it doesn't already exist) and returns a
+    // one-time code/link — nothing is emailed automatically. Relay it to
+    // the business owner yourself (WhatsApp, phone, in person, or your own
+    // email — whatever you'd already use to reach them).
+    const { code, link, error: inviteError } = await adminGenerateInvite(request.email, request.full_name);
+    if (inviteError || !code || !link) {
+      setError(inviteError ?? 'Failed to generate invite.');
       return;
     }
     await supabase
       .from('signup_requests')
       .update({ status: 'approved', reviewed_at: new Date().toISOString() })
       .eq('id', request.id);
+    setInvite({ name: request.full_name, email: request.email, code, link });
     await load();
   };
 
@@ -286,7 +301,7 @@ export default function PlatformAdminDashboard() {
                     <button
                       onClick={() => approveSignup(r)}
                       className="p-1.5 rounded bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30"
-                      title="Approve — sends them a sign-in link"
+                      title="Approve — generates an activation code/link for you to relay"
                     >
                       <Check className="w-4 h-4" />
                     </button>
@@ -429,17 +444,27 @@ export default function PlatformAdminDashboard() {
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-          <h2 className="text-white font-medium text-sm mb-3">Grant city admin</h2>
+          <h2 className="text-white font-medium text-sm mb-1">Create city admin</h2>
+          <p className="text-xs text-slate-500 mb-3">
+            City admins never self-register — this is the only way the role is granted. Nothing is
+            emailed automatically; you'll get a one-time code/link below to relay yourself.
+          </p>
           <div className="flex flex-col sm:flex-row gap-2">
             <input
-              value={assignEmail}
-              onChange={(e) => setAssignEmail(e.target.value)}
-              placeholder="User's email (must have signed up already)"
+              value={newAdminName}
+              onChange={(e) => setNewAdminName(e.target.value)}
+              placeholder="Full name"
+              className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+            />
+            <input
+              value={newAdminEmail}
+              onChange={(e) => setNewAdminEmail(e.target.value)}
+              placeholder="Email"
               className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
             />
             <select
-              value={assignCityId}
-              onChange={(e) => setAssignCityId(e.target.value)}
+              value={newAdminCityId}
+              onChange={(e) => setNewAdminCityId(e.target.value)}
               className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
             >
               <option value="">City…</option>
@@ -449,13 +474,60 @@ export default function PlatformAdminDashboard() {
                 </option>
               ))}
             </select>
-            <button onClick={assignCityAdmin} className="px-4 bg-blue-600 hover:bg-blue-500 rounded-lg text-white text-sm font-semibold py-2">
-              Grant
+            <button
+              onClick={createCityAdmin}
+              disabled={creatingAdmin}
+              className="px-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-lg text-white text-sm font-semibold py-2 whitespace-nowrap"
+            >
+              {creatingAdmin ? 'Creating…' : 'Create'}
             </button>
           </div>
           {error && <p className="text-xs text-red-400 mt-2">{error}</p>}
           {notice && <p className="text-xs text-emerald-400 mt-2">{notice}</p>}
         </div>
+
+        {invite && (
+          <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-5 mt-6">
+            <h2 className="text-white font-medium text-sm mb-1">Activation ready for {invite.name}</h2>
+            <p className="text-xs text-blue-300 mb-3">
+              Share this with them yourself (WhatsApp, phone, in person) — nothing was emailed
+              automatically. They'll enter their email + this code at /activate, then set up a
+              passkey.
+            </p>
+            <div className="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5 mb-2">
+              <div>
+                <p className="text-[10px] text-slate-500 uppercase tracking-wide">Email</p>
+                <p className="text-sm text-white">{invite.email}</p>
+              </div>
+            </div>
+            <div className="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5 mb-2">
+              <div>
+                <p className="text-[10px] text-slate-500 uppercase tracking-wide">Code</p>
+                <p className="text-lg text-white font-mono tracking-widest">{invite.code}</p>
+              </div>
+              <button
+                onClick={() => navigator.clipboard.writeText(invite.code)}
+                className="text-slate-400 hover:text-white p-1.5"
+                aria-label="Copy code"
+              >
+                <Copy className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5">
+              <div className="min-w-0">
+                <p className="text-[10px] text-slate-500 uppercase tracking-wide">Direct link</p>
+                <p className="text-xs text-slate-300 truncate">{invite.link}</p>
+              </div>
+              <button
+                onClick={() => navigator.clipboard.writeText(invite.link)}
+                className="text-slate-400 hover:text-white p-1.5 shrink-0 ml-2"
+                aria-label="Copy link"
+              >
+                <Copy className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 mt-6">
           <h2 className="text-white font-medium text-sm mb-3">Manage a user's passkeys</h2>
