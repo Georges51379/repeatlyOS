@@ -86,9 +86,14 @@ Deno.serve(async (req: Request) => {
     })
 
     if (action === 'list') {
-      const { data, error } = await adminClient.auth.admin.passkey.list({ userId })
+      // Named differently from the client-side self-service API
+      // (`supabase.auth.passkey.list`) — confirmed by reading
+      // GoTrueAdminApi's constructor directly after `.passkey.list` threw
+      // "is not a function" in production; the admin object only has
+      // `listPasskeys`/`deletePasskey`.
+      const { data, error } = await adminClient.auth.admin.passkey.listPasskeys({ userId })
       if (error) {
-        console.error('passkey.list failed', error)
+        console.error('passkey.listPasskeys failed', error)
         return new Response(JSON.stringify({ error: `Failed to list passkeys: ${error.message}` }), { status: 500 })
       }
       return new Response(JSON.stringify({ data }), {
@@ -97,9 +102,9 @@ Deno.serve(async (req: Request) => {
       })
     }
 
-    const { error } = await adminClient.auth.admin.passkey.delete({ userId, passkeyId: passkeyId as string })
+    const { error } = await adminClient.auth.admin.passkey.deletePasskey({ userId, passkeyId: passkeyId as string })
     if (error) {
-      console.error('passkey.delete failed', error)
+      console.error('passkey.deletePasskey failed', error)
       return new Response(JSON.stringify({ error: `Failed to revoke passkey: ${error.message}` }), { status: 500 })
     }
     return new Response(JSON.stringify({ success: true }), {
