@@ -65,7 +65,15 @@ Deno.serve(async (req: Request) => {
   }
 
   // Step 2: the actual admin action, via the service-role client only.
-  const adminClient = createClient(supabaseUrl, serviceRoleKey)
+  // `experimental.passkey: true` is required here too (not just on the
+  // browser client in lib/supabase.ts) — every passkey method, including
+  // the admin list/delete ones, throws `assertPasskeyExperimentalEnabled`
+  // without it. Confirmed live: omitting this produced a raw 500 with no
+  // useful error message, since that assertion throws before this
+  // function's own try/catch even starts.
+  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { experimental: { passkey: true } },
+  })
 
   if (action === 'list') {
     const { data, error } = await adminClient.auth.admin.passkey.list({ userId })
