@@ -18,49 +18,61 @@
 // SUPABASE_SERVICE_ROLE_KEY are auto-injected). Keep the default JWT
 // verification enabled for this function.
 //
-// Live-verified 2026-09-11 up through the authorization step (a
-// non-admin caller correctly gets 403). The admin passkey.list/delete
-// calls themselves returned an opaque 500 with no details in testing —
-// everything checked on the client-library side looked correct
-// (experimental.passkey flag present, exact version pinned, Passkeys
-// enabled in the dashboard), so the top-level try/catch below was added
-// specifically to surface *what* is actually failing via Supabase's
-// function logs, instead of guessing further blind. Re-verify once that
-// real error is visible.
-
+// Live-verified 2026-09-11 via curl end to end (non-admin gets 403,
+// admin gets the passkey list). CORS handling added afterward, once this
+// started being called from the actual browser dashboard instead of only
+// curl — curl never enforces CORS, so that gap wasn't visible until then.
+//
 // Pinned to the exact version verified locally to include passkey admin
 // support (node_modules/@supabase/auth-js), rather than a floating "@2" —
 // the passkey API is recent enough that an unpinned range risks resolving
 // to a version that predates it.
 import { createClient } from 'npm:@supabase/supabase-js@2.116.0'
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
+
+function jsonResponse(body: unknown, status: number) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  })
+}
+
 Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: corsHeaders })
+  }
+
   try {
     if (req.method !== 'POST') {
-      return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
+      return jsonResponse({ error: 'Method not allowed' }, 405)
     }
 
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Missing Authorization header' }), { status: 401 })
+      return jsonResponse({ error: 'Missing Authorization header' }, 401)
     }
 
     let body: { action?: unknown; userId?: unknown; passkeyId?: unknown }
     try {
       body = await req.json()
     } catch {
-      return new Response(JSON.stringify({ error: 'Invalid JSON body' }), { status: 400 })
+      return jsonResponse({ error: 'Invalid JSON body' }, 400)
     }
 
     const { action, userId, passkeyId } = body
     if (action !== 'list' && action !== 'delete') {
-      return new Response(JSON.stringify({ error: 'action must be "list" or "delete"' }), { status: 400 })
+      return jsonResponse({ error: 'action must be "list" or "delete"' }, 400)
     }
     if (typeof userId !== 'string' || userId.length === 0) {
-      return new Response(JSON.stringify({ error: 'userId is required' }), { status: 400 })
+      return jsonResponse({ error: 'userId is required' }, 400)
     }
     if (action === 'delete' && (typeof passkeyId !== 'string' || passkeyId.length === 0)) {
-      return new Response(JSON.stringify({ error: 'passkeyId is required for delete' }), { status: 400 })
+      return jsonResponse({ error: 'passkeyId is required for delete' }, 400)
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
@@ -73,7 +85,7 @@ Deno.serve(async (req: Request) => {
     })
     const { data: isAdmin, error: authError } = await callerClient.rpc('is_platform_admin')
     if (authError || !isAdmin) {
-      return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403 })
+      return jsonResponse({ error: 'Forbidden' }, 403)
     }
 
     // Step 2: the actual admin action, via the service-role client only.
@@ -94,23 +106,17 @@ Deno.serve(async (req: Request) => {
       const { data, error } = await adminClient.auth.admin.passkey.listPasskeys({ userId })
       if (error) {
         console.error('passkey.listPasskeys failed', error)
-        return new Response(JSON.stringify({ error: `Failed to list passkeys: ${error.message}` }), { status: 500 })
+        return jsonResponse({ error: `Failed to list passkeys: ${error.message}` }, 500)
       }
-      return new Response(JSON.stringify({ data }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
+      return jsonResponse({ data }, 200)
     }
 
     const { error } = await adminClient.auth.admin.passkey.deletePasskey({ userId, passkeyId: passkeyId as string })
     if (error) {
       console.error('passkey.deletePasskey failed', error)
-      return new Response(JSON.stringify({ error: `Failed to revoke passkey: ${error.message}` }), { status: 500 })
+      return jsonResponse({ error: `Failed to revoke passkey: ${error.message}` }, 500)
     }
-    return new Response(JSON.stringify({ success: true }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    return jsonResponse({ success: true }, 200)
   } catch (err) {
     // Catches anything the auth-js client throws synchronously rather than
     // returning as a { data, error } pair (e.g. the experimental-flag
@@ -119,9 +125,6 @@ Deno.serve(async (req: Request) => {
     // Supabase's Edge Runtime returned its own generic, detail-free 500.
     console.error('admin-manage-passkeys crashed', err)
     const message = err instanceof Error ? err.message : String(err)
-    return new Response(JSON.stringify({ error: `Unhandled error: ${message}` }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    return jsonResponse({ error: `Unhandled error: ${message}` }, 500)
   }
 })

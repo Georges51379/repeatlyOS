@@ -24,39 +24,65 @@
 // Deploy: Supabase Dashboard -> Edge Functions -> New Function -> paste
 // this file, or `supabase functions deploy admin-generate-invite`. Keep
 // the default JWT verification enabled.
+//
+// CORS: this is invoked directly from the browser (PlatformAdminDashboard),
+// unlike the curl-only testing every function in this project got before
+// now — the browser sends an OPTIONS preflight first, which needs an
+// explicit 200 + Access-Control-Allow-* response, and every actual
+// response (success or error) needs those same headers or the browser
+// discards it before the app ever sees the body. Found live: the
+// dashboard's "Create city admin" call failed with a CORS error because
+// this was missing entirely.
 
 import { createClient } from 'npm:@supabase/supabase-js@2.116.0'
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
+
+function jsonResponse(body: unknown, status: number) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  })
+}
+
 Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: corsHeaders })
+  }
+
   try {
     if (req.method !== 'POST') {
-      return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
+      return jsonResponse({ error: 'Method not allowed' }, 405)
     }
 
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Missing Authorization header' }), { status: 401 })
+      return jsonResponse({ error: 'Missing Authorization header' }, 401)
     }
 
     let body: { email?: unknown; fullName?: unknown; cityId?: unknown; redirectTo?: unknown }
     try {
       body = await req.json()
     } catch {
-      return new Response(JSON.stringify({ error: 'Invalid JSON body' }), { status: 400 })
+      return jsonResponse({ error: 'Invalid JSON body' }, 400)
     }
 
     const { email, fullName, cityId, redirectTo } = body
     if (typeof email !== 'string' || email.length === 0) {
-      return new Response(JSON.stringify({ error: 'email is required' }), { status: 400 })
+      return jsonResponse({ error: 'email is required' }, 400)
     }
     if (typeof fullName !== 'string' || fullName.length === 0) {
-      return new Response(JSON.stringify({ error: 'fullName is required' }), { status: 400 })
+      return jsonResponse({ error: 'fullName is required' }, 400)
     }
     if (cityId !== undefined && typeof cityId !== 'string') {
-      return new Response(JSON.stringify({ error: 'cityId must be a string when provided' }), { status: 400 })
+      return jsonResponse({ error: 'cityId must be a string when provided' }, 400)
     }
     if (typeof redirectTo !== 'string' || redirectTo.length === 0) {
-      return new Response(JSON.stringify({ error: 'redirectTo is required' }), { status: 400 })
+      return jsonResponse({ error: 'redirectTo is required' }, 400)
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
@@ -69,7 +95,7 @@ Deno.serve(async (req: Request) => {
     })
     const { data: isAdmin, error: authError } = await callerClient.rpc('is_platform_admin')
     if (authError || !isAdmin) {
-      return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403 })
+      return jsonResponse({ error: 'Forbidden' }, 403)
     }
 
     // Step 2: generate (never send) the one-time credential, via the
@@ -87,7 +113,7 @@ Deno.serve(async (req: Request) => {
     })
     if (error || !data.user) {
       console.error('generateLink failed', error)
-      return new Response(JSON.stringify({ error: `Failed to generate invite: ${error?.message}` }), { status: 500 })
+      return jsonResponse({ error: `Failed to generate invite: ${error?.message}` }, 500)
     }
 
     // Step 3: optionally grant city_admin for the requested city.
@@ -97,25 +123,20 @@ Deno.serve(async (req: Request) => {
         .upsert({ user_id: data.user.id, city_id: cityId }, { onConflict: 'user_id,city_id' })
       if (grantError) {
         console.error('city_admins grant failed', grantError)
-        return new Response(JSON.stringify({ error: `Failed to grant city admin: ${grantError.message}` }), {
-          status: 500,
-        })
+        return jsonResponse({ error: `Failed to grant city admin: ${grantError.message}` }, 500)
       }
     }
 
-    return new Response(
-      JSON.stringify({
+    return jsonResponse(
+      {
         code: data.properties.email_otp,
         link: data.properties.action_link,
-      }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } },
+      },
+      200,
     )
   } catch (err) {
     console.error('admin-generate-invite crashed', err)
     const message = err instanceof Error ? err.message : String(err)
-    return new Response(JSON.stringify({ error: `Unhandled error: ${message}` }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    return jsonResponse({ error: `Unhandled error: ${message}` }, 500)
   }
 })

@@ -22,29 +22,50 @@
 // the project. Requires the default JWT verification Supabase applies to
 // new functions (do not disable it for this one).
 //
-// NOT verified against a live deployment — no Edge Function has been
-// deployed for this project yet. Verify manually after deploying.
+// CORS: an OPTIONS preflight + Access-Control-Allow-* headers on every
+// response, needed for any call made from the browser rather than curl
+// (curl never enforces CORS, which is why this was missing from every
+// Edge Function in this project until the gap surfaced live on
+// admin-generate-invite). Not otherwise re-verified against a live
+// deployment.
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
+
+function jsonResponse(body: unknown, status: number) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  })
+}
+
 Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: corsHeaders })
+  }
+
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
+    return jsonResponse({ error: 'Method not allowed' }, 405)
   }
 
   const authHeader = req.headers.get('Authorization')
   if (!authHeader) {
-    return new Response(JSON.stringify({ error: 'Missing Authorization header' }), { status: 401 })
+    return jsonResponse({ error: 'Missing Authorization header' }, 401)
   }
 
   let membershipId: unknown
   try {
     ;({ membershipId } = await req.json())
   } catch {
-    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), { status: 400 })
+    return jsonResponse({ error: 'Invalid JSON body' }, 400)
   }
   if (typeof membershipId !== 'string' || membershipId.length === 0) {
-    return new Response(JSON.stringify({ error: 'membershipId is required' }), { status: 400 })
+    return jsonResponse({ error: 'membershipId is required' }, 400)
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!
@@ -64,13 +85,10 @@ Deno.serve(async (req: Request) => {
   if (readError || !membership) {
     // Deliberately the same response whether the row doesn't exist or RLS
     // hid it — don't let this endpoint be used to probe which IDs exist.
-    return new Response(JSON.stringify({ error: 'Not found' }), { status: 404 })
+    return jsonResponse({ error: 'Not found' }, 404)
   }
   if (!membership.invited_email) {
-    return new Response(JSON.stringify({ invited_email: null }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    return jsonResponse({ invited_email: null }, 200)
   }
 
   // Step 2: decryption, via the service-role client only.
@@ -80,11 +98,8 @@ Deno.serve(async (req: Request) => {
   })
   if (decryptError) {
     console.error('decrypt_pii failed', decryptError)
-    return new Response(JSON.stringify({ error: 'Decryption failed' }), { status: 500 })
+    return jsonResponse({ error: 'Decryption failed' }, 500)
   }
 
-  return new Response(JSON.stringify({ invited_email: plaintext }), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-  })
+  return jsonResponse({ invited_email: plaintext }, 200)
 })
