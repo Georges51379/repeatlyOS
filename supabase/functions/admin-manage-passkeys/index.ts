@@ -21,7 +21,11 @@
 // NOT verified against a live deployment — no Edge Function has been
 // deployed for this project yet. Verify manually after deploying.
 
-import { createClient } from 'npm:@supabase/supabase-js@2'
+// Pinned to the exact version verified locally to include passkey admin
+// support (node_modules/@supabase/auth-js), rather than a floating "@2" —
+// the passkey API is recent enough that an unpinned range risks resolving
+// to a version that predates it.
+import { createClient } from 'npm:@supabase/supabase-js@2.116.0'
 
 Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') {
