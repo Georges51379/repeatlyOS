@@ -1102,12 +1102,64 @@ device).
     registration/login (both require a real browser — same standing
     limitation noted throughout this project).
 
+## Passkey-Only Login, No Automated Email (2026-09-11)
+
+The user rejected the OTP-email approach entirely ("REMOVE THE EMAIL
+VERIFICATION PROCESS AND SENDING CODE AT ALL") after finding it clunky in
+practice, and wanted city admins created directly by the super admin
+(never self-registering) with a simpler activate-with-a-key flow.
+
+- **Login and SuperAdminLogin now show only the passkey button** — the
+  email-code fallback is gone from both.
+- This reintroduces a hard constraint: registering a passkey requires an
+  existing session (`registerPasskey`'s `_startPasskeyRegistration`
+  requires an active session — confirmed again against the installed
+  auth-js source), so some bootstrap credential still has to exist. The
+  fix: `admin.generateLink` (service-role only) *generates* a one-time
+  code/link without ever *sending* it — unlike `signInWithOtp`, which
+  does both. The new `admin-generate-invite` Edge Function calls it and
+  returns the code/link directly to the calling platform admin, who
+  relays it to the person however they choose. No new migration needed —
+  this is entirely an Edge Function + client change. This is still a
+  real one-time, single-use, time-limited credential gated to platform
+  admins only — not a "type any email, get a session" hole.
+  - `PlatformAdminDashboard.tsx`: "Approve" on a signup request, and a new
+    "Create city admin" form (name + email + city — city admins never
+    self-register, this is now the *only* way the role is granted), both
+    call this and display the resulting code/link in a copyable box.
+  - `/activate` is now a single email + code form with no "send" step —
+    the code already exists by the time anyone reaches this page.
+  - `AuthContext`'s `requestSignupCode`/`requestLoginCode` (both
+    `signInWithOtp`-based) are removed, replaced by `adminGenerateInvite`.
+- **Live-verified the core mechanism** using a disposable test account:
+  generated a code via the raw Admin API (confirming no email is sent —
+  `generateLink` only returns artifacts), then verified that code via
+  `verifyOtp` with `type: 'email'` successfully returned a full session —
+  confirming the type mismatch risk (the raw response's own
+  `verification_type` said `"signup"` for a brand-new user, not
+  `"magiclink"`) doesn't actually matter, since `'email'` is accepted
+  regardless of how the underlying link was generated. Test account
+  deleted afterward.
+- Corrected `boutros.georges513@gmail.com` to platform-admin only (the
+  city-admin grant added for earlier testing was removed) and generated
+  their real activation code directly via `service_role` (the same
+  mechanism the UI now uses), to hand to them out of band since the
+  Edge Function itself isn't deployed yet.
+- **Not yet live-verified through the actual UI**: pending the user
+  deploying the new `admin-generate-invite` Edge Function. The
+  underlying mechanism is confirmed correct (above); what's untested is
+  the dashboard buttons/forms that call it.
+
 ## In Progress
 
-- Nothing actively in progress. Ready for Phase 9.
+- Waiting on the user to deploy `admin-generate-invite` before the
+  Platform Admin dashboard's "Approve" and "Create city admin" actions
+  can be exercised end to end through the UI.
 
 ## Next
 
+- Live-verify the invite flow through the actual dashboard UI once
+  deployed.
 - Phase 9 (hardening — tenant-isolation/authz regression tests, the
   previously-flagged rate-limiting/CAPTCHA gap on public marketplace
   insert paths) and Phase 10 (production prep).
