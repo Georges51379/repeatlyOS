@@ -1058,22 +1058,56 @@ device).
 - `npm run build` passes; `npm run lint` shows no new issues (the
   `AuthContext.tsx` `react-refresh/only-export-components` flag is the
   same pre-existing pattern as `DemoContext.tsx`).
-- **Not yet live-verified**: pending the user applying
-  `20260910000023_signup_approval.sql` and deploying the new
-  `admin-manage-passkeys` Edge Function (same manual-deploy limitation as
-  `decrypt-invite-email` — no Edge Function has been deployed for this
-  project yet at all, so neither is verified against a live deployment).
+- **Live-verified (2026-09-11)**, migration applied, `admin-manage-passkeys`
+  deployed. This round found three real bugs in the deployed function via
+  actual logs, not assumption — each confirmed fixed in turn:
+  1. Missing `experimental: { passkey: true }` on the service-role client
+     (only the browser client in `lib/supabase.ts` had it) — every
+     passkey method throws `assertPasskeyExperimentalEnabled` without it.
+  2. Ruled out (but pinned anyway for safety): an unpinned `npm:@supabase/
+     supabase-js@2` specifier resolving to something older than the
+     passkey API. Confirmed the user's dashboard already had Passkeys
+     enabled with an RP ID configured, ruling out a project-config gap.
+  3. **The actual root cause**: the admin object's real method names are
+     `listPasskeys`/`deletePasskey`, not `list`/`delete` like the
+     client-side self-service API (`supabase.auth.passkey.list/delete`)
+     — confirmed by reading the function's own error logs
+     (`adminClient.auth.admin.passkey.list is not a function`) after
+     adding a top-level try/catch specifically so the real error would
+     surface instead of Deno's generic detail-free 500. Fixed both call
+     sites; re-verified live.
+  - `signup_requests`: anon insert succeeds (after one transient
+    schema-cache-lag failure immediately post-migration, which
+    self-resolved on retry — not a real bug), anon cannot read the table,
+    a second pending request for the same email is correctly rejected
+    (`23505`), a platform admin can read pending requests and reject one
+    (plain update, no email sent), a non-admin can neither read nor
+    update any row.
+  - `admin-manage-passkeys`: a non-admin caller gets `403 Forbidden`; a
+    genuine platform admin listing another user's passkeys now gets
+    `{"data":[]}` correctly.
+  - The actual `requestSignupCode` (approve) call was confirmed to reach
+    Supabase's real OTP-send logic — it returned `429
+    over_email_send_rate_limit` on a repeat send, which is Supabase's own
+    default email-sending rate limit, not an application bug. **Operational
+    note for the user**: the default built-in email sender allows very few
+    sends per hour; real signups will hit this quickly without a custom
+    SMTP provider (Resend/SendGrid/Postmark/etc.) configured in
+    Authentication → SMTP Settings.
+  - All test data (2 auth users, 1 admin grant, all signup_requests test
+    rows) deleted afterward.
+  - **This completes the signup-approval/super-admin/passkey-revocation
+    work.** Not independently re-verified in this pass: the super-admin
+    login page itself (`/super-admin`) and actual browser-based passkey
+    registration/login (both require a real browser — same standing
+    limitation noted throughout this project).
 
 ## In Progress
 
-- Waiting on the user to apply the new migration and deploy the new Edge
-  Function before this can be live-verified.
+- Nothing actively in progress. Ready for Phase 9.
 
 ## Next
 
-- Live-verify signup approval (request → approve → email arrives → sign
-  in → passkey setup), the super-admin login page, and admin passkey
-  revocation once both are in place.
 - Phase 9 (hardening — tenant-isolation/authz regression tests, the
   previously-flagged rate-limiting/CAPTCHA gap on public marketplace
   insert paths) and Phase 10 (production prep).
