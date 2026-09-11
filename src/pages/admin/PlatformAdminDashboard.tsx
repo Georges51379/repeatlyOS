@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { ShieldCheck, Check, X, Plus } from 'lucide-react';
+import { ShieldCheck, Check, X, Plus, Fingerprint, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../context/AuthContext';
 import { useAdminRoles } from '../../hooks/useAdminRoles';
-import type { Business, BusinessSaasSubscription, City, SaasPlan } from '../../types/domain';
+import type { Business, BusinessSaasSubscription, City, SaasPlan, SignupRequest } from '../../types/domain';
+import type { PasskeyListItem } from '@supabase/supabase-js';
 
 interface Counts {
   cities: number;
@@ -29,16 +31,22 @@ async function countBusinessesByStatus(status: string) {
 
 export default function PlatformAdminDashboard() {
   const { isPlatformAdmin, loading: rolesLoading } = useAdminRoles();
+  const { requestSignupCode, adminListPasskeys, adminRevokePasskey } = useAuth();
   const [counts, setCounts] = useState<Counts | null>(null);
   const [pending, setPending] = useState<Business[]>([]);
   const [cities, setCities] = useState<City[]>([]);
   const [allBusinesses, setAllBusinesses] = useState<Business[]>([]);
   const [plans, setPlans] = useState<SaasPlan[]>([]);
   const [subscriptions, setSubscriptions] = useState<Record<string, BusinessSaasSubscription>>({});
+  const [signupRequests, setSignupRequests] = useState<SignupRequest[]>([]);
   const [newCityName, setNewCityName] = useState('');
   const [newCitySlug, setNewCitySlug] = useState('');
   const [assignEmail, setAssignEmail] = useState('');
   const [assignCityId, setAssignCityId] = useState('');
+  const [passkeyEmail, setPasskeyEmail] = useState('');
+  const [passkeyUser, setPasskeyUser] = useState<{ id: string; email: string } | null>(null);
+  const [managedPasskeys, setManagedPasskeys] = useState<PasskeyListItem[]>([]);
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -82,6 +90,13 @@ export default function PlatformAdminDashboard() {
       subsByBusiness[s.business_id] = s;
     }
     setSubscriptions(subsByBusiness);
+
+    const { data: requestRows } = await supabase
+      .from('signup_requests')
+      .select('*')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: true });
+    setSignupRequests((requestRows ?? []) as SignupRequest[]);
   }, []);
 
   useEffect(() => {
@@ -160,6 +175,70 @@ export default function PlatformAdminDashboard() {
     await load();
   };
 
+  const approveSignup = async (request: SignupRequest) => {
+    setError(null);
+    // Creates the auth account (if it doesn't already exist) and emails
+    // them a one-time sign-in code/link — this is the first moment the
+    // requester gets anything usable, and it's triggered by a human
+    // approving them, not by anything they did themselves.
+    const { error: codeError } = await requestSignupCode(request.email, request.full_name);
+    if (codeError) {
+      setError(codeError);
+      return;
+    }
+    await supabase
+      .from('signup_requests')
+      .update({ status: 'approved', reviewed_at: new Date().toISOString() })
+      .eq('id', request.id);
+    await load();
+  };
+
+  const rejectSignup = async (request: SignupRequest) => {
+    await supabase
+      .from('signup_requests')
+      .update({ status: 'rejected', reviewed_at: new Date().toISOString() })
+      .eq('id', request.id);
+    await load();
+  };
+
+  const lookupPasskeyUser = async () => {
+    if (!passkeyEmail.trim()) return;
+    setError(null);
+    setPasskeyUser(null);
+    setManagedPasskeys([]);
+    const { data: profileRow, error: lookupError } = await supabase
+      .from('profiles')
+      .select('id, email')
+      .eq('email', passkeyEmail.trim())
+      .maybeSingle();
+    if (lookupError || !profileRow || !profileRow.email) {
+      setError('No user found with that email.');
+      return;
+    }
+    setPasskeyBusy(true);
+    const { data, error: listError } = await adminListPasskeys(profileRow.id);
+    setPasskeyBusy(false);
+    if (listError) {
+      setError(listError);
+      return;
+    }
+    setPasskeyUser({ id: profileRow.id, email: profileRow.email });
+    setManagedPasskeys(data);
+  };
+
+  const revokeManagedPasskey = async (passkeyId: string) => {
+    if (!passkeyUser) return;
+    setPasskeyBusy(true);
+    setError(null);
+    const { error: revokeError } = await adminRevokePasskey(passkeyUser.id, passkeyId);
+    setPasskeyBusy(false);
+    if (revokeError) {
+      setError(revokeError);
+      return;
+    }
+    setManagedPasskeys((prev) => prev.filter((pk) => pk.id !== passkeyId));
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-10">
       <div className="max-w-3xl mx-auto">
@@ -190,6 +269,39 @@ export default function PlatformAdminDashboard() {
           than through real billing history. Showing a computed "revenue" number without real transactions behind
           it would be misleading.
         </p>
+
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 mb-6">
+          <h2 className="text-white font-medium text-sm mb-3">Pending signup requests</h2>
+          {signupRequests.length === 0 ? (
+            <p className="text-slate-500 text-sm">Nothing pending.</p>
+          ) : (
+            <div className="space-y-2">
+              {signupRequests.map((r) => (
+                <div key={r.id} className="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5">
+                  <div>
+                    <p className="text-white text-sm">{r.full_name}</p>
+                    <p className="text-xs text-slate-500">{r.email}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => approveSignup(r)}
+                      className="p-1.5 rounded bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30"
+                      title="Approve — sends them a sign-in link"
+                    >
+                      <Check className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => rejectSignup(r)}
+                      className="p-1.5 rounded bg-red-600/20 text-red-400 hover:bg-red-600/30"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 mb-6">
           <h2 className="text-white font-medium text-sm mb-3">Pending business approvals</h2>
@@ -343,6 +455,55 @@ export default function PlatformAdminDashboard() {
           </div>
           {error && <p className="text-xs text-red-400 mt-2">{error}</p>}
           {notice && <p className="text-xs text-emerald-400 mt-2">{notice}</p>}
+        </div>
+
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 mt-6">
+          <h2 className="text-white font-medium text-sm mb-3">Manage a user's passkeys</h2>
+          <div className="flex gap-2 mb-3">
+            <input
+              value={passkeyEmail}
+              onChange={(e) => setPasskeyEmail(e.target.value)}
+              placeholder="User's email"
+              className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+            />
+            <button
+              onClick={lookupPasskeyUser}
+              disabled={passkeyBusy}
+              className="px-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-lg text-white text-sm font-semibold"
+            >
+              Look up
+            </button>
+          </div>
+          {passkeyUser && (
+            <div>
+              <p className="text-xs text-slate-500 mb-2">Passkeys for {passkeyUser.email}:</p>
+              {managedPasskeys.length === 0 ? (
+                <p className="text-sm text-slate-500 mb-2">No passkeys registered.</p>
+              ) : (
+                <div className="space-y-2">
+                  {managedPasskeys.map((pk) => (
+                    <div key={pk.id} className="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Fingerprint className="w-4 h-4 text-blue-400 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-sm text-white truncate">{pk.friendly_name || 'Passkey'}</p>
+                          <p className="text-xs text-slate-500">Added {new Date(pk.created_at).toLocaleDateString()}</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => revokeManagedPasskey(pk.id)}
+                        disabled={passkeyBusy}
+                        className="text-slate-500 hover:text-red-400 disabled:opacity-50 p-1.5"
+                        aria-label="Revoke passkey"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

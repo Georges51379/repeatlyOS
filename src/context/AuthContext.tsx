@@ -14,9 +14,10 @@ interface AuthContextType {
   memberships: BusinessMembershipWithBusiness[];
   refreshMemberships: () => Promise<void>;
   /** Sends a one-time sign-in code/link to an email that may not have an
-   * account yet — used by the signup page. Creates the account on first
-   * use (populating `full_name`) instead of requiring a separate
-   * password + "click this link to confirm your email" step. */
+   * account yet, creating the account on first use (populating
+   * `full_name`). Called by a platform admin approving a signup request
+   * (see PlatformAdminDashboard) — signup itself only submits a request,
+   * it doesn't call this directly. */
   requestSignupCode: (email: string, fullName: string) => Promise<{ error: string | null }>;
   /** Same one-time code/link, but for an email that must already have an
    * account — used by the login page, so a typo'd or new email gets a
@@ -38,6 +39,13 @@ interface AuthContextType {
   registerPasskey: () => Promise<{ error: string | null }>;
   listPasskeys: () => Promise<{ data: PasskeyListItem[]; error: string | null }>;
   deletePasskey: (passkeyId: string) => Promise<{ error: string | null }>;
+  /** Platform-admin-only: list/revoke ANOTHER user's passkeys (e.g. if
+   * their device was lost or stolen). Runs through the
+   * `admin-manage-passkeys` Edge Function since the client-side passkey
+   * API only ever operates on the caller's own account — see that
+   * function for why this needs a server-side call at all. */
+  adminListPasskeys: (userId: string) => Promise<{ data: PasskeyListItem[]; error: string | null }>;
+  adminRevokePasskey: (userId: string, passkeyId: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -142,6 +150,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error?.message ?? null };
   };
 
+  const adminListPasskeys = async (userId: string) => {
+    if (!isSupabaseConfigured) return { data: [], error: 'Supabase is not configured yet. See .env.example.' };
+    const { data, error } = await supabase.functions.invoke<{ data: PasskeyListItem[] }>('admin-manage-passkeys', {
+      body: { action: 'list', userId },
+    });
+    if (error) return { data: [], error: error.message };
+    return { data: data?.data ?? [], error: null };
+  };
+
+  const adminRevokePasskey = async (userId: string, passkeyId: string) => {
+    if (!isSupabaseConfigured) return { error: 'Supabase is not configured yet. See .env.example.' };
+    const { error } = await supabase.functions.invoke('admin-manage-passkeys', {
+      body: { action: 'delete', userId, passkeyId },
+    });
+    return { error: error?.message ?? null };
+  };
+
   const signOut = async () => {
     if (!isSupabaseConfigured) return;
     await supabase.auth.signOut();
@@ -164,6 +189,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         registerPasskey,
         listPasskeys,
         deletePasskey,
+        adminListPasskeys,
+        adminRevokePasskey,
         signOut,
       }}
     >

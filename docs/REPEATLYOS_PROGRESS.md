@@ -998,18 +998,82 @@ plus removing the password/email-confirmation friction from sign-up.
     at `/signup` with an email they control to confirm the OTP email
     actually arrives.
 
+## Signup Approval, Super Admin Login &amp; Admin Passkey Revocation (2026-09-11)
+
+The user signed up as `boutros.georges513@gmail.com` using the previous
+turn's OTP-signup flow — granted `platform_admins` immediately. Then asked
+for a different model: signup should create no account at all, just a
+request a platform admin reviews; city admins are never self-registered,
+only assigned; the super admin gets a dedicated login page; and a
+platform admin should be able to revoke another user's passkey (e.g. lost
+device).
+
+- `20260910000023_signup_approval.sql`: new `signup_requests` table
+  (full_name, email, status). Insert is open to anyone (there's no
+  account yet at this point — nothing to scope it to); read/update is
+  platform-admin only. A partial unique index blocks a second pending
+  request for the same email. This is what actually resolves the earlier
+  "remove verification" tension: there's truly nothing to verify at
+  submission time, since no session or `auth.users` row is created until
+  a human approves it.
+- `Signup.tsx` rewritten again: just full name + email + submit → one
+  INSERT into `signup_requests`, no Supabase Auth call at all. Shows a
+  static "submitted, awaiting approval" confirmation.
+- `PlatformAdminDashboard.tsx`: new "Pending signup requests" section.
+  Approving calls the existing `requestSignupCode(email, fullName)` (this
+  is the only place that function is called now — it creates the
+  `auth.users` row and emails them a one-time sign-in code/link) and
+  marks the request `approved`; rejecting just marks it `rejected`. This
+  is also where "if approved, they can log in and set a passkey" actually
+  happens — clicking the emailed link/entering the code lands them
+  signed in, same as the old flow, and from there `/account/security`
+  offers passkey setup exactly as before.
+- **Admin passkey revocation** (`supabase/functions/admin-manage-passkeys/
+  index.ts`, new `adminListPasskeys`/`adminRevokePasskey` in
+  `AuthContext.tsx`, a new section on `PlatformAdminDashboard.tsx`):
+  the client-side passkey API (`supabase.auth.passkey.*`) is self-service
+  only — it always operates on the caller's own account. Revoking
+  *someone else's* passkey requires the GoTrue Admin API
+  (`admin.passkey.list/delete`, scoped by `userId`), confirmed present by
+  reading the installed `@supabase/auth-js` source directly rather than
+  assuming — which only works with the service_role key, so this needed
+  a new Edge Function. Same two-step shape as `decrypt-invite-email`:
+  authorize via `is_platform_admin()` called through the caller's own
+  JWT, then act via the service-role client. Look up a user by email,
+  list their passkeys, revoke individually.
+- **Super admin login page** (`SuperAdminLogin.tsx`, `/super-admin`): a
+  separate entry point from the regular business/city-admin `/login`, per
+  the user's explicit request — same underlying auth (passkey primary,
+  emailed code fallback), just its own branded page. Redirects to
+  `/platform-admin` once signed in *and* confirmed to hold the
+  `platform_admins` grant; if signed in without it, offers to sign out
+  rather than silently doing nothing. The page's existence grants nothing
+  by itself — same RLS-backed `platform_admins` check as everywhere else
+  is still the real boundary, this is purely a distinct front door to it.
+- City admins already had no self-registration path (they were only ever
+  grantable via the existing "Grant city admin" form) — nothing changed
+  there, just confirming the new `signup_requests` flow doesn't add one
+  either (it has no role field at all; approval always yields a plain
+  account with no admin grant attached).
+- `npm run build` passes; `npm run lint` shows no new issues (the
+  `AuthContext.tsx` `react-refresh/only-export-components` flag is the
+  same pre-existing pattern as `DemoContext.tsx`).
+- **Not yet live-verified**: pending the user applying
+  `20260910000023_signup_approval.sql` and deploying the new
+  `admin-manage-passkeys` Edge Function (same manual-deploy limitation as
+  `decrypt-invite-email` — no Edge Function has been deployed for this
+  project yet at all, so neither is verified against a live deployment).
+
 ## In Progress
 
-- Waiting on the user to sign up with a real email via the new
-  passwordless flow — needed both to confirm OTP email delivery works,
-  and so their account can be granted platform-admin (and optionally
-  city-admin / ownership of the seed businesses) to test every role
-  through one login.
+- Waiting on the user to apply the new migration and deploy the new Edge
+  Function before this can be live-verified.
 
 ## Next
 
-- Once the user has a real account: grant the requested roles, then
-  move to Phase 9.
+- Live-verify signup approval (request → approve → email arrives → sign
+  in → passkey setup), the super-admin login page, and admin passkey
+  revocation once both are in place.
 - Phase 9 (hardening — tenant-isolation/authz regression tests, the
   previously-flagged rate-limiting/CAPTCHA gap on public marketplace
   insert paths) and Phase 10 (production prep).

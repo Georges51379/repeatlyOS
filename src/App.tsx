@@ -3,6 +3,7 @@ import { DemoProvider } from './context/DemoContext';
 import { AuthProvider } from './context/AuthContext';
 import Login from './pages/auth/Login';
 import Signup from './pages/auth/Signup';
+import SuperAdminLogin from './pages/auth/SuperAdminLogin';
 import AccountSecurity from './pages/auth/AccountSecurity';
 import RequireAuth from './components/RequireAuth';
 import Onboarding from './pages/onboarding/Onboarding';
@@ -84,6 +85,7 @@ export default function App() {
           <Route path="/discover" element={<Discover />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/super-admin" element={<SuperAdminLogin />} />
           <Route
             path="/account/security"
             element={

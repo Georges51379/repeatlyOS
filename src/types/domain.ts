@@ -25,6 +25,18 @@ export interface Profile {
   updated_at: string;
 }
 
+export type SignupRequestStatus = 'pending' | 'approved' | 'rejected';
+
+export interface SignupRequest {
+  id: string;
+  full_name: string;
+  email: string;
+  status: SignupRequestStatus;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+}
+
 export interface CityAdminRow {
   user_id: string;
   city_id: string;
