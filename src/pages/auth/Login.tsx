@@ -4,47 +4,14 @@ import { Zap, Fingerprint } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export default function Login() {
-  const { user, requestLoginCode, verifyCode, signInWithPasskey, configured } = useAuth();
+  const { user, signInWithPasskey, configured } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
-  const [codeSent, setCodeSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
   const [passkeySubmitting, setPasskeySubmitting] = useState(false);
 
-  // Covers the shopper clicking the link in the email instead of typing
-  // the code — the session gets established automatically on reload, so
-  // once `user` becomes truthy we just move on.
   useEffect(() => {
     if (user) navigate('/app');
   }, [user, navigate]);
-
-  const handleSendCode = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setError(null);
-    const { error: sendError } = await requestLoginCode(email);
-    setSubmitting(false);
-    if (sendError) {
-      setError(sendError);
-      return;
-    }
-    setCodeSent(true);
-  };
-
-  const handleVerifyCode = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setError(null);
-    const { error: verifyError } = await verifyCode(email, code);
-    setSubmitting(false);
-    if (verifyError) {
-      setError(verifyError);
-      return;
-    }
-    navigate('/app');
-  };
 
   const handlePasskey = async () => {
     setPasskeySubmitting(true);
@@ -85,89 +52,24 @@ export default function Login() {
             type="button"
             onClick={handlePasskey}
             disabled={passkeySubmitting || !configured}
-            className="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold py-2.5 rounded-lg transition-colors mb-4"
+            className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold py-2.5 rounded-lg transition-colors"
           >
             <Fingerprint className="w-4 h-4" />
             {passkeySubmitting ? 'Waiting for passkey…' : 'Sign in with a passkey'}
           </button>
 
-          <div className="flex items-center gap-3 mb-4">
-            <div className="h-px bg-slate-800 flex-1" />
-            <span className="text-[10px] uppercase tracking-wide text-slate-600">or with email</span>
-            <div className="h-px bg-slate-800 flex-1" />
-          </div>
-
-          {!codeSent ? (
-            <form onSubmit={handleSendCode} className="space-y-4">
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Email</label>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-                  placeholder="you@business.com"
-                />
-              </div>
-
-              {error && <p className="text-xs text-red-400">{error}</p>}
-
-              <button
-                type="submit"
-                disabled={submitting || !configured}
-                className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold py-2.5 rounded-lg transition-colors"
-              >
-                {submitting ? 'Sending code…' : 'Send sign-in code'}
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handleVerifyCode} className="space-y-4">
-              <p className="text-xs text-slate-400">
-                We sent a code (and a sign-in link) to <span className="text-white">{email}</span>.
-                Enter the code below, or click the link in the email.
-              </p>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Code</label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  required
-                  autoFocus
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white tracking-widest text-center focus:outline-none focus:border-blue-500"
-                  placeholder="123456"
-                />
-              </div>
-
-              {error && <p className="text-xs text-red-400">{error}</p>}
-
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold py-2.5 rounded-lg transition-colors"
-              >
-                {submitting ? 'Verifying…' : 'Verify & sign in'}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setCodeSent(false);
-                  setCode('');
-                  setError(null);
-                }}
-                className="w-full text-xs text-slate-500 hover:text-slate-300"
-              >
-                Use a different email
-              </button>
-            </form>
-          )}
+          {error && <p className="text-xs text-red-400 mt-3">{error}</p>}
 
           <p className="text-xs text-slate-500 mt-5 text-center">
+            First time, or lost your passkey?{' '}
+            <Link to="/activate" className="text-blue-400 hover:text-blue-300">
+              Activate your account
+            </Link>
+          </p>
+          <p className="text-xs text-slate-500 mt-2 text-center">
             No account?{' '}
             <Link to="/signup" className="text-blue-400 hover:text-blue-300">
-              Create one
+              Register your business
             </Link>
           </p>
         </div>

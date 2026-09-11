@@ -8,6 +8,11 @@ export default function AccountSecurity() {
   const { user, loading, configured, registerPasskey, listPasskeys, deletePasskey } = useAuth();
   const [searchParams] = useSearchParams();
   const next = searchParams.get('next');
+  // Set by the /activate flow (and by a fresh business-registration
+  // approval email) — this account has no other way to sign in again
+  // besides a passkey, so there is no "skip" here, unlike an existing
+  // user optionally adding a second passkey later.
+  const mandatory = searchParams.get('mandatory') === '1';
   const [passkeys, setPasskeys] = useState<PasskeyListItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -64,7 +69,15 @@ export default function AccountSecurity() {
             scanning a QR code with your phone — no code or password needed next time.
           </p>
 
-          {next && (
+          {next && mandatory && (
+            <div className="mb-5 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2.5">
+              <p className="text-xs text-amber-300">
+                Sign-in is passkey-only — set one up now. There's no other way back into this
+                account afterward besides this same "Activate your account" step again.
+              </p>
+            </div>
+          )}
+          {next && !mandatory && (
             <div className="mb-5 flex items-center justify-between bg-blue-500/10 border border-blue-500/30 rounded-lg px-3 py-2.5">
               <p className="text-xs text-blue-300">Set one up now, or skip — you can always add one later.</p>
               <Link to={next} className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 font-semibold shrink-0 ml-3">
@@ -130,11 +143,13 @@ export default function AccountSecurity() {
           )}
         </div>
 
-        <p className="text-center mt-6">
-          <Link to={next ?? '/app'} className="text-xs text-slate-600 hover:text-slate-400">
-            ← {next ? 'Skip for now' : 'Back to dashboard'}
-          </Link>
-        </p>
+        {!mandatory && (
+          <p className="text-center mt-6">
+            <Link to={next ?? '/app'} className="text-xs text-slate-600 hover:text-slate-400">
+              ← {next ? 'Skip for now' : 'Back to dashboard'}
+            </Link>
+          </p>
+        )}
       </div>
     </div>
   );

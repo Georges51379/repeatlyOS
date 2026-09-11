@@ -106,7 +106,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!isSupabaseConfigured) return { error: 'Supabase is not configured yet. See .env.example.' };
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { shouldCreateUser: true, data: { full_name: fullName } },
+      options: {
+        shouldCreateUser: true,
+        data: { full_name: fullName },
+        // Since login is passkey-only, this first sign-in (whether they
+        // click the link or type the code on /activate) must land
+        // directly on passkey setup — there is no other page that would
+        // get them there otherwise. `mandatory=1` tells AccountSecurity
+        // not to offer a "skip" — skipping here would mean the account
+        // has no way to ever sign in again.
+        emailRedirectTo: `${window.location.origin}/account/security?next=/onboarding&mandatory=1`,
+      },
     });
     return { error: error?.message ?? null };
   };
@@ -115,7 +125,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!isSupabaseConfigured) return { error: 'Supabase is not configured yet. See .env.example.' };
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { shouldCreateUser: false },
+      options: {
+        shouldCreateUser: false,
+        emailRedirectTo: `${window.location.origin}/account/security?next=/app&mandatory=1`,
+      },
     });
     return { error: error?.message ?? null };
   };

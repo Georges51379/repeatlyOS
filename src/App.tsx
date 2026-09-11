@@ -4,6 +4,7 @@ import { AuthProvider } from './context/AuthContext';
 import Login from './pages/auth/Login';
 import Signup from './pages/auth/Signup';
 import SuperAdminLogin from './pages/auth/SuperAdminLogin';
+import Activate from './pages/auth/Activate';
 import AccountSecurity from './pages/auth/AccountSecurity';
 import RequireAuth from './components/RequireAuth';
 import Onboarding from './pages/onboarding/Onboarding';
@@ -86,6 +87,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/super-admin" element={<SuperAdminLogin />} />
+          <Route path="/activate" element={<Activate />} />
           <Route
             path="/account/security"
             element={
