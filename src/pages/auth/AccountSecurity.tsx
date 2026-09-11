@@ -1,11 +1,13 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Navigate, Link } from 'react-router-dom';
-import { Fingerprint, Trash2, Zap } from 'lucide-react';
+import { Navigate, Link, useSearchParams } from 'react-router-dom';
+import { Fingerprint, Trash2, Zap, ArrowRight } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import type { PasskeyListItem } from '@supabase/supabase-js';
 
 export default function AccountSecurity() {
   const { user, loading, configured, registerPasskey, listPasskeys, deletePasskey } = useAuth();
+  const [searchParams] = useSearchParams();
+  const next = searchParams.get('next');
   const [passkeys, setPasskeys] = useState<PasskeyListItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -59,8 +61,17 @@ export default function AccountSecurity() {
           <h1 className="text-white font-semibold text-lg mb-1">Passkeys</h1>
           <p className="text-slate-500 text-sm mb-5">
             Add a passkey to sign in with Face ID, Touch ID, Windows Hello, a hardware key, or by
-            scanning a QR code with your phone — no password needed.
+            scanning a QR code with your phone — no code or password needed next time.
           </p>
+
+          {next && (
+            <div className="mb-5 flex items-center justify-between bg-blue-500/10 border border-blue-500/30 rounded-lg px-3 py-2.5">
+              <p className="text-xs text-blue-300">Set one up now, or skip — you can always add one later.</p>
+              <Link to={next} className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 font-semibold shrink-0 ml-3">
+                Skip <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
+          )}
 
           {!configured && (
             <div className="mb-4 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2">
@@ -108,11 +119,20 @@ export default function AccountSecurity() {
             <Fingerprint className="w-4 h-4" />
             {busy ? 'Working…' : 'Add a passkey'}
           </button>
+
+          {next && passkeys.length > 0 && (
+            <Link
+              to={next}
+              className="mt-3 w-full flex items-center justify-center gap-2 border border-slate-700 hover:border-slate-600 text-slate-200 text-sm font-semibold py-2.5 rounded-lg transition-colors"
+            >
+              Continue <ArrowRight className="w-4 h-4" />
+            </Link>
+          )}
         </div>
 
         <p className="text-center mt-6">
-          <Link to="/dashboard" className="text-xs text-slate-600 hover:text-slate-400">
-            ← Back to dashboard
+          <Link to={next ?? '/app'} className="text-xs text-slate-600 hover:text-slate-400">
+            ← {next ? 'Skip for now' : 'Back to dashboard'}
           </Link>
         </p>
       </div>

@@ -919,15 +919,97 @@ cities existed short of already knowing a `citySlug`.
     real cities left in place.
   - **This completes the homepage/city-directory/smart-search redesign.**
 
+## Demo/Seed Data &amp; Passwordless Auth (2026-09-11, before Phase 9)
+
+Requested directly by the user: real browsable content for manual testing,
+plus removing the password/email-confirmation friction from sign-up.
+
+- **Persistent demo data** (not test-and-cleanup — meant to stay):
+  4 businesses across the 2 real cities, each with an owner account
+  created via the Admin API (`seed-sports-merchant@repeatlyos-demo.com`,
+  `seed-shekka-merchant@repeatlyos-demo.com`) and approved via a
+  throwaway seed platform-admin account whose `platform_admins` grant was
+  revoked immediately afterward (least privilege — it only existed long
+  enough to approve these 4 rows). All three seed accounts had their
+  passwords scrambled to an unretained random value once done, so they
+  can't be signed into at all going forward (no password UI exists
+  anymore anyway, and nobody owns those inboxes for the passwordless
+  flow) — they exist purely to satisfy the `businesses.created_by` /
+  membership foreign keys, not as usable logins.
+  - **North Sport** (Batroun, `clothing_store`): 4 sneakers, each tagged
+    `brand`/`size`/`color` via `product_attributes` (Nike/Adidas/Puma
+    across sizes 41–44), plus tracked inventory (15–24 units each) — real
+    data to exercise the faceted search, product detail pages, and the
+    Inventory dashboard.
+  - **Batroun Cuts** (Batroun, `barber`): 2 bookable services (Haircut,
+    Beard Trim) — exercises the services/booking flow.
+  - **Shekka Boutique** (Shekka, `clothing_store`): 3 products
+    (jacket/dress/shorts) tagged with different brands/sizes/colors,
+    including a `Nike` pair specifically so the "in Shekka" case has its
+    own direct match, not just the Batroun fallback.
+  - **Shekka Bites** (Shekka, `restaurant`): a small food menu — exercises
+    a business type with no size/color attributes at all.
+  - Confirmed live via `anon` queries: both cities' businesses are
+    publicly visible with the right names/slugs.
+- **Passwordless auth** (`AuthContext.tsx`, `Login.tsx`, `Signup.tsx`):
+  replaced `signUp`/`signIn` (password + separate "click this link to
+  confirm your email" step) with `requestSignupCode` /
+  `requestLoginCode` / `verifyCode`, built on Supabase's
+  `signInWithOtp`/`verifyOtp`. A user now signs up with just email + full
+  name, or logs in with just email — no password field anywhere.
+  - Chose this over a truly zero-verification "just type an email and
+    you're in" flow (which is what "remove verification via email" could
+    literally mean) because that would let anyone claim any email address
+    and immediately get a real session under that identity — a serious
+    account-takeover hole. The OTP code *is* the verification step here,
+    just collapsed into the same screen instead of a separate
+    password-signup-then-confirm-later flow, and there's no password to
+    manage, reset, or leak.
+  - Signup uses `shouldCreateUser: true` (first use creates the account,
+    populating `full_name` via the existing `handle_new_user` trigger);
+    login uses `shouldCreateUser: false` so a typo'd/unregistered email
+    gets a clear error instead of silently creating an account with no
+    name on file.
+  - Both pages also auto-continue if the shopper clicks the emailed link
+    instead of typing the code (a `useEffect` on `user` in `Login.tsx`;
+    `Signup.tsx`'s next step is reached via `verifyCode` directly since
+    it needs to happen exactly once regardless of which path completes
+    it first).
+  - After a successful signup, the user now lands on
+    `/account/security?next=/onboarding` — the existing passkey
+    management page, extended with a `next` param so a brand-new user is
+    prompted to add a passkey with a clear "Skip for now" escape hatch,
+    then continues to business registration either way. This is also
+    where an existing user can add a passkey any time, or a returning
+    user without one falls back to the email-code login — together this
+    covers "set a new passkey if not available, or enter with an
+    existing one."
+  - Fixed a stale reference while in this file: `AccountSecurity.tsx`'s
+    back-link pointed at `/dashboard` (the original fully-fake demo,
+    unrelated to a real signed-in user) instead of `/app`.
+  - `npm run build` passes; no new lint issues beyond this codebase's
+    existing patterns (the `useAuth`/`AuthProvider` co-export flagged by
+    `react-refresh/only-export-components` already existed before this
+    change, same as `DemoContext.tsx`/`MarketplaceCartContext.tsx`).
+  - **Not yet live-verified against a real inbox** — sending real email
+    depends on the Supabase project's configured email delivery (its
+    default built-in sender is rate-limited; a custom SMTP provider may
+    already be configured, unverified). The user should sign up for real
+    at `/signup` with an email they control to confirm the OTP email
+    actually arrives.
+
 ## In Progress
 
-- Phase 8 and the homepage/city-directory/smart-search redesign are both
-  complete and live-verified. Nothing else is actively in progress.
+- Waiting on the user to sign up with a real email via the new
+  passwordless flow — needed both to confirm OTP email delivery works,
+  and so their account can be granted platform-admin (and optionally
+  city-admin / ownership of the seed businesses) to test every role
+  through one login.
 
 ## Next
 
-- Live-verify the smart search + city directory once the user runs
-  `20260910000022_seed_second_city.sql`.
+- Once the user has a real account: grant the requested roles, then
+  move to Phase 9.
 - Phase 9 (hardening — tenant-isolation/authz regression tests, the
   previously-flagged rate-limiting/CAPTCHA gap on public marketplace
   insert paths) and Phase 10 (production prep).

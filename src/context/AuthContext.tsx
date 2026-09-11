@@ -13,8 +13,20 @@ interface AuthContextType {
   user: User | null;
   memberships: BusinessMembershipWithBusiness[];
   refreshMemberships: () => Promise<void>;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: string | null }>;
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  /** Sends a one-time sign-in code/link to an email that may not have an
+   * account yet — used by the signup page. Creates the account on first
+   * use (populating `full_name`) instead of requiring a separate
+   * password + "click this link to confirm your email" step. */
+  requestSignupCode: (email: string, fullName: string) => Promise<{ error: string | null }>;
+  /** Same one-time code/link, but for an email that must already have an
+   * account — used by the login page, so a typo'd or new email gets a
+   * clear "no account" error instead of silently creating one. */
+  requestLoginCode: (email: string) => Promise<{ error: string | null }>;
+  /** Verifies the 6-digit code from either email above. (If the shopper
+   * clicks the link in the email instead of typing the code, the session
+   * is established automatically when the app reloads — no action needed
+   * here for that path.) */
+  verifyCode: (email: string, code: string) => Promise<{ error: string | null }>;
   /** Passwordless sign-in with an existing passkey. Triggers the browser's
    * native WebAuthn picker — cross-device sign-in (scan a QR code with your
    * phone) is offered automatically there when available; RepeatlyOS doesn't
@@ -82,19 +94,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [refreshMemberships]);
 
-  const signUp = async (email: string, password: string, fullName: string) => {
+  const requestSignupCode = async (email: string, fullName: string) => {
     if (!isSupabaseConfigured) return { error: 'Supabase is not configured yet. See .env.example.' };
-    const { error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signInWithOtp({
       email,
-      password,
-      options: { data: { full_name: fullName } },
+      options: { shouldCreateUser: true, data: { full_name: fullName } },
     });
     return { error: error?.message ?? null };
   };
 
-  const signIn = async (email: string, password: string) => {
+  const requestLoginCode = async (email: string) => {
     if (!isSupabaseConfigured) return { error: 'Supabase is not configured yet. See .env.example.' };
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: false },
+    });
+    return { error: error?.message ?? null };
+  };
+
+  const verifyCode = async (email: string, code: string) => {
+    if (!isSupabaseConfigured) return { error: 'Supabase is not configured yet. See .env.example.' };
+    const { error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' });
     return { error: error?.message ?? null };
   };
 
@@ -137,8 +157,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: session?.user ?? null,
         memberships,
         refreshMemberships,
-        signUp,
-        signIn,
+        requestSignupCode,
+        requestLoginCode,
+        verifyCode,
         signInWithPasskey,
         registerPasskey,
         listPasskeys,
