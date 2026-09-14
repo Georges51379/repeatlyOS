@@ -1150,24 +1150,99 @@ practice, and wanted city admins created directly by the super admin
   underlying mechanism is confirmed correct (above); what's untested is
   the dashboard buttons/forms that call it.
 
+## Roadmap Implementation Pass (2026-09-14)
+
+Requested by the user against the product/enhancement report generated the
+same day: "implement all the changes in the roadmap... except [the WhatsApp
+ordering bot and diaspora gifting]." 17 new migrations
+(`20260914000001`-`20260914000017`), 2 new Edge Functions, and ~25
+frontend files. Full detail is in the two commit messages
+("Implement roadmap: geo search, loyalty, cross-shop cart, i18n, and more"
+and the encryption/finalize follow-up), not repeated here — summary:
+
+- **Closed documented MVP gaps**: real `staff_members` table + a GiST
+  exclusion constraint for booking-overlap prevention (both explicitly
+  deferred in the Phase 3 migrations above), automatic inventory
+  decrement/restock, rate limiting on anonymous guest order/booking
+  inserts.
+- **True GPS-radius search** (`distance_km`/`products_near`), alongside
+  (not replacing) the existing region-fallback smart search.
+- **New features**: city-wide loyalty wallet, cross-shop cart with shared
+  delivery groups, power-cut-aware availability override, shared delivery
+  pool opt-in, verified-business badge, manually-managed USD/LBP exchange
+  rate, vertical-specific custom fields on all seeded business types,
+  verified photo reviews, and real-data ports of the legacy mock
+  dashboard's health score / revenue forecast / revenue heatmap / churn
+  risk / referral leaderboard.
+- **Frontend infra**: lightweight EN/AR/FR i18n with RTL (scoped to the
+  public marketplace pages, not yet the merchant dashboard), an
+  offline-tolerant checkout queue (localStorage + replay on reconnect),
+  client-side image compression + lazy loading, Vitest + Testing Library
+  (first-ever test runner in this repo).
+- **Second field-level encryption pass**: extended the `invited_email`
+  pattern (migration `20260910000004`) to `orders.delivery_address` /
+  `delivery_groups.delivery_address` (zero UI impact — nothing read them
+  yet) and, after explicit confirmation, `customers.address` (which WAS
+  displayed — added a `decrypt-customer-address` Edge Function and
+  changed `Customers.tsx` to decrypt on demand only when opening one
+  customer's edit form, not on every list load). Full reasoning for what
+  was and wasn't encrypted, including why customer/guest phone numbers
+  structurally can't use this same pattern without breaking the
+  loyalty/rate-limiting/referral features that key off them, is in
+  `docs/REPEATLYOS_SECURITY_MODEL.md`.
+- **First pgTAP test files** (`supabase/tests/database/`), covering core
+  SQL logic and an automated version of the tenant-isolation check that
+  was previously only ever verified once, by hand. **Not executable in
+  the environment they were written in** (no Docker) — see
+  `supabase/tests/README.md`.
+- **Verified locally**: `tsc -b` (0 errors), `vite build` (succeeds),
+  `vitest run` (12/12 passing — geo distance math, currency formatting,
+  the smart-search parser). A full static audit confirmed all 33 tables in
+  the schema (old + new) have RLS enabled with at least one policy each,
+  and every `security definer` function pins `search_path`.
+- **Not verified against the live project**: this session's Supabase CLI
+  session is authenticated as a different account/org than the one that
+  owns the `repeatlyos` project (confirmed via `supabase projects list`
+  and a 403 from `supabase projects api-keys` against the real project
+  ref) — connectivity to the live project WAS confirmed (the anon key in
+  `.env` successfully reads real `cities` rows), but none of the 17 new
+  migrations or 2 new Edge Functions have been applied/deployed there yet.
+  **Action needed from the user**: `supabase login` as the account that
+  owns this project, then `supabase db push` and
+  `supabase functions deploy decrypt-customer-address` (the other new
+  function docs already existed as a template).
+- Local git history was force-pushed to `origin/main`
+  (`git@github-personal:Georges51379/repeatlyOS.git`), replacing an
+  unrelated, disconnected "Initial commit" that held the pre-Supabase-pivot
+  demo snapshot — done only after explicit confirmation, since the two
+  histories shared no common ancestor.
+
 ## In Progress
 
 - Waiting on the user to deploy `admin-generate-invite` before the
   Platform Admin dashboard's "Approve" and "Create city admin" actions
   can be exercised end to end through the UI.
+- Waiting on the user to run `supabase db push` (17 pending migrations)
+  and deploy the two newest Edge Functions — see "Roadmap Implementation
+  Pass" above for exactly why this session couldn't do it directly.
 
 ## Next
 
 - Live-verify the invite flow through the actual dashboard UI once
   deployed.
-- Phase 9 (hardening — tenant-isolation/authz regression tests, the
-  previously-flagged rate-limiting/CAPTCHA gap on public marketplace
-  insert paths) and Phase 10 (production prep).
+- Once the pending migrations are live: actually run
+  `supabase test db` (needs Docker) to confirm the new pgTAP files pass,
+  since they've only been reviewed, not executed, anywhere so far.
+- Phase 9 hardening items not yet covered: a real courier/delivery-partner
+  API integration (needs a specific provider chosen — a business decision,
+  not a code one), and extending the EN/AR/FR i18n pass from the public
+  marketplace pages into the merchant dashboard.
 
 ## Known Issues
 
-- No git history existed before this session (see Migration Notes).
-- No test suite exists anywhere in the repo.
+- No test suite existed before 2026-09-14 (see "Roadmap Implementation
+  Pass" above) — now exists (Vitest for pure TS logic, pgTAP for SQL) but
+  the pgTAP half hasn't been run anywhere yet.
 - No `.env`/environment configuration exists yet (nothing needs one until a
   backend exists).
 - `BusinessPublicPage` and `CustomerPortal` are hardcoded to a single business

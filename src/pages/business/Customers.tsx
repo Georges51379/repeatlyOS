@@ -23,6 +23,7 @@ export default function Customers() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState<CustomerFormState | null>(null);
+  const [loadingAddress, setLoadingAddress] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -73,6 +74,34 @@ export default function Customers() {
     }
     setForm(null);
     await load();
+  };
+
+  // `address` is ciphertext at rest (migration 20260914000016) — the
+  // Customers table never renders it directly (see the table's columns
+  // below: Name/Phone/Email/Status only), so it's decrypted on demand, one
+  // row at a time, only when actually opening that row's edit form. Same
+  // authorization-then-decrypt Edge Function pattern as invited_email.
+  const handleEdit = async (customer: Customer) => {
+    setForm({
+      id: customer.id,
+      full_name: customer.full_name,
+      phone: customer.phone ?? '',
+      email: customer.email ?? '',
+      address: '',
+      notes: customer.notes ?? '',
+    });
+    if (!customer.address) return;
+    setLoadingAddress(true);
+    const { data, error: fnError } = await supabase.functions.invoke<{ address: string | null }>(
+      'decrypt-customer-address',
+      { body: { customerId: customer.id } },
+    );
+    setLoadingAddress(false);
+    if (fnError) {
+      setError('Could not load the saved address.');
+      return;
+    }
+    setForm((prev) => (prev && prev.id === customer.id ? { ...prev, address: data?.address ?? '' } : prev));
   };
 
   const handleDelete = async (id: string) => {
@@ -143,16 +172,7 @@ export default function Customers() {
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-2">
                         <button
-                          onClick={() =>
-                            setForm({
-                              id: c.id,
-                              full_name: c.full_name,
-                              phone: c.phone ?? '',
-                              email: c.email ?? '',
-                              address: c.address ?? '',
-                              notes: c.notes ?? '',
-                            })
-                          }
+                          onClick={() => handleEdit(c)}
                           className="text-slate-500 hover:text-slate-300 p-1"
                         >
                           <Pencil className="w-3.5 h-3.5" />
@@ -199,8 +219,9 @@ export default function Customers() {
               <input
                 value={form.address}
                 onChange={(e) => setForm({ ...form, address: e.target.value })}
-                placeholder="Address"
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                placeholder={loadingAddress ? 'Loading saved address…' : 'Address'}
+                disabled={loadingAddress}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 disabled:opacity-50"
               />
               <textarea
                 value={form.notes}

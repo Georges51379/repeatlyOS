@@ -167,6 +167,61 @@ ciphertext column + auto-encrypt trigger + one Edge Function per read path
 that needs plaintext, gated by RLS-based authorization it doesn't
 reimplement.
 
+### Field-level encryption, second field (2026-09-14): delivery addresses
+
+`orders.delivery_address` and `delivery_groups.delivery_address` — see
+`supabase/migrations/20260914000015_encrypt_delivery_addresses.sql`. Reuses
+the exact same `encrypt_pii`/`decrypt_pii` functions and Vault key from the
+`invited_email` migration above (one project-wide PII key, not one per
+field) via the same auto-encrypt-on-write trigger pattern.
+
+Checked against the actual frontend before encrypting: neither field is
+read back anywhere today (`src/pages/business/Orders.tsx` doesn't reference
+`delivery_address` at all yet), so this has zero UI blast radius — nothing
+needs a decrypt path built for it yet. When an order-fulfillment view is
+built that needs to show the address, add one Edge Function for that read,
+same as `decrypt-invite-email`.
+
+**Deliberately NOT extended (2026-09-14) to `customers.address`:** unlike
+`delivery_address`, this field IS actively rendered today, in a list view
+(`src/pages/business/Customers.tsx`), for every row on every page load.
+Encrypting it is a real, larger decision — it needs either a batched
+decrypt Edge Function called once per list load (adds latency to a
+frequently-hit page and duplicates more surface area than the rare,
+one-off `invited_email` reveal this pattern was built for) or accepting
+that a customer list feels slower. This is the user's call to make, not
+something to default into silently; flagged for a decision rather than
+either encrypting it unasked or dropping the idea.
+
+**`businesses.address` and `businesses.phone`/`whatsapp` are correctly NOT
+candidates at all** — these are meant to be public (rendered on the
+business's own public storefront), which is exactly the "publicly
+displayed" exclusion this section already establishes.
+
+**Customer/guest phone numbers (`orders.customer_phone`,
+`bookings.customer_phone`, `loyalty_wallets.customer_phone`,
+`customer_referrals.*_phone`, `reviews.customer_phone`,
+`guest_submission_log.customer_phone`) are also correctly NOT encrypted**,
+and for a stronger structural reason than "not built yet": every one of
+these is used as an exact-match lookup key by design — the city-wide
+loyalty wallet is keyed by phone (migration 20260914000006), guest-abuse
+rate limiting counts by phone (migration 20260914000004), review
+verification matches a review's claimed phone against the order/booking's
+phone (migration 20260914000013), and referral tracking matches referrer
+to referred by phone (migration 20260914000014). `pgp_sym_encrypt` is
+non-deterministic (the same input encrypts to different ciphertext every
+time), so none of those `where customer_phone = ...` comparisons could
+still work if this column were encrypted with the pattern used above — this
+is the exact same structural conflict this doc's "Why this can't be
+blanket" section already describes for RLS-evaluated columns, just applied
+to application-level equality lookups instead. Making phone numbers
+encryptable-yet-searchable would need a genuinely different mechanism (a
+deterministic HMAC "blind index" column stored alongside an encrypted
+display column, looked up by hash instead of plaintext) — a real,
+buildable option, but a bigger design change across every table above, not
+a drop-in application of the existing template. Worth doing if/when phone
+numbers are judged to need it; not defaulted into as part of this pass.
+
 ### Why this can't be blanket — using the test we actually ran as evidence
 
 The master-prompt §37 tenant-isolation test (two businesses, confirm A can
