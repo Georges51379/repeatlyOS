@@ -1,32 +1,48 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 
-// Master-prompt §18: a cart belongs to ONE merchant. Multi-merchant
-// checkout is explicitly out of MVP scope (payments/delivery/refunds/
-// settlements/taxes all get much harder). Pure client-side state,
-// localStorage-persisted per browser — there's no server-side "cart" table,
-// matching how carts work on virtually every e-commerce site (a cart is a
-// draft; only the final order needs to be a real, permanent DB row).
+// Cross-shop cart (new feature): a shopper can add items from MULTIPLE
+// businesses in the same city cart and check out once — each business still
+// gets its own `orders` row at checkout (see Cart.tsx), linked under a
+// shared `delivery_groups` row (migration 20260914000007) so participating
+// merchants can coordinate one delivery run instead of the shopper placing
+// N separate orders with N separate delivery fees.
+//
+// This replaces the earlier single-merchant-only cart (which cleared itself
+// and asked the shopper to confirm whenever they tried to add a second
+// business's item) — `addItem`'s call signature is UNCHANGED so existing
+// call sites (BusinessStorefront.tsx, ProductDetail.tsx, ServiceDetail.tsx)
+// need no changes; only the internal shape and Cart.tsx's checkout/grouping
+// logic changed.
 
 export interface CartItem {
   productId: string;
+  businessId: string;
+  businessName: string;
   name: string;
   unitPrice: number;
   quantity: number;
 }
 
 interface CartState {
-  businessId: string | null;
-  businessName: string | null;
   items: CartItem[];
 }
 
-interface MarketplaceCartContextType extends CartState {
-  addItem: (businessId: string, businessName: string, item: Omit<CartItem, 'quantity'>) => void;
+export interface CartGroup {
+  businessId: string;
+  businessName: string;
+  items: CartItem[];
+  subtotal: number;
+}
+
+interface MarketplaceCartContextType {
+  items: CartItem[];
+  addItem: (businessId: string, businessName: string, item: Omit<CartItem, 'quantity' | 'businessId' | 'businessName'>) => void;
   removeItem: (productId: string) => void;
   setQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;
   total: number;
+  groupedByBusiness: CartGroup[];
 }
 
 const STORAGE_KEY = 'repeatlyos_marketplace_cart';
@@ -36,11 +52,27 @@ const MarketplaceCartContext = createContext<MarketplaceCartContextType | null>(
 function loadInitial(): CartState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw) as CartState;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      // Migrate the old single-business shape ({businessId, businessName,
+      // items: [{productId, name, unitPrice, quantity}]}) transparently —
+      // a shopper with an existing cart from before this change shouldn't
+      // lose it.
+      if (Array.isArray(parsed.items) && parsed.businessId && parsed.items.length > 0 && !parsed.items[0].businessId) {
+        return {
+          items: parsed.items.map((i: Omit<CartItem, 'businessId' | 'businessName'>) => ({
+            ...i,
+            businessId: parsed.businessId,
+            businessName: parsed.businessName,
+          })),
+        };
+      }
+      if (Array.isArray(parsed.items)) return { items: parsed.items };
+    }
   } catch {
     // Ignore — private browsing / storage disabled falls back to an empty cart.
   }
-  return { businessId: null, businessName: null, items: [] };
+  return { items: [] };
 }
 
 export function MarketplaceCartProvider({ children }: { children: ReactNode }) {
@@ -56,26 +88,18 @@ export function MarketplaceCartProvider({ children }: { children: ReactNode }) {
 
   const addItem: MarketplaceCartContextType['addItem'] = (businessId, businessName, item) => {
     setState((prev) => {
-      if (prev.businessId && prev.businessId !== businessId) {
-        const proceed = confirm(
-          `Your cart has items from ${prev.businessName}. Adding this will clear it and start a new cart for ${businessName}. Continue?`,
-        );
-        if (!proceed) return prev;
-        return { businessId, businessName, items: [{ ...item, quantity: 1 }] };
-      }
-      const existing = prev.items.find((i) => i.productId === item.productId);
+      const existing = prev.items.find((i) => i.productId === item.productId && i.businessId === businessId);
       const items = existing
-        ? prev.items.map((i) => (i.productId === item.productId ? { ...i, quantity: i.quantity + 1 } : i))
-        : [...prev.items, { ...item, quantity: 1 }];
-      return { businessId, businessName, items };
+        ? prev.items.map((i) =>
+            i.productId === item.productId && i.businessId === businessId ? { ...i, quantity: i.quantity + 1 } : i,
+          )
+        : [...prev.items, { ...item, businessId, businessName, quantity: 1 }];
+      return { items };
     });
   };
 
   const removeItem = (productId: string) => {
-    setState((prev) => {
-      const items = prev.items.filter((i) => i.productId !== productId);
-      return items.length === 0 ? { businessId: null, businessName: null, items: [] } : { ...prev, items };
-    });
+    setState((prev) => ({ items: prev.items.filter((i) => i.productId !== productId) }));
   };
 
   const setQuantity = (productId: string, quantity: number) => {
@@ -84,17 +108,29 @@ export function MarketplaceCartProvider({ children }: { children: ReactNode }) {
       return;
     }
     setState((prev) => ({
-      ...prev,
       items: prev.items.map((i) => (i.productId === productId ? { ...i, quantity } : i)),
     }));
   };
 
-  const clearCart = () => setState({ businessId: null, businessName: null, items: [] });
+  const clearCart = () => setState({ items: [] });
 
   const total = state.items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
 
+  const groupedByBusiness: CartGroup[] = Object.values(
+    state.items.reduce<Record<string, CartGroup>>((acc, item) => {
+      if (!acc[item.businessId]) {
+        acc[item.businessId] = { businessId: item.businessId, businessName: item.businessName, items: [], subtotal: 0 };
+      }
+      acc[item.businessId].items.push(item);
+      acc[item.businessId].subtotal += item.unitPrice * item.quantity;
+      return acc;
+    }, {}),
+  );
+
   return (
-    <MarketplaceCartContext.Provider value={{ ...state, addItem, removeItem, setQuantity, clearCart, total }}>
+    <MarketplaceCartContext.Provider
+      value={{ items: state.items, addItem, removeItem, setQuantity, clearCart, total, groupedByBusiness }}
+    >
       {children}
     </MarketplaceCartContext.Provider>
   );

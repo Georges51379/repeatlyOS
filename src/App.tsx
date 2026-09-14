@@ -15,6 +15,7 @@ import RealInventory from './pages/business/Inventory';
 import RealOrders from './pages/business/Orders';
 import RealCustomers from './pages/business/Customers';
 import RealTasks from './pages/business/Tasks';
+import BusinessStaff from './pages/business/Staff';
 import BusinessServices from './pages/business/Services';
 import BusinessBookings from './pages/business/Bookings';
 import BusinessAnalytics from './pages/business/Analytics';
@@ -128,6 +129,7 @@ export default function App() {
             <Route path="services" element={<BusinessServices />} />
             <Route path="bookings" element={<BusinessBookings />} />
             <Route path="tasks" element={<RealTasks />} />
+            <Route path="staff" element={<BusinessStaff />} />
             <Route path="analytics" element={<BusinessAnalytics />} />
             <Route path="payments" element={<BusinessPayments />} />
             <Route path="memberships" element={<BusinessMemberships />} />

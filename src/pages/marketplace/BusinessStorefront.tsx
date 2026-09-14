@@ -1,18 +1,28 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Store, Phone, MessageCircle, MapPin, Package, Wrench, Plus } from 'lucide-react';
+import { Store, Phone, MessageCircle, MapPin, Package, Wrench, Plus, Truck } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useMarketplaceCart } from '../../context/MarketplaceCartContext';
+import { useI18n } from '../../lib/i18n';
+import PriceTag from '../../components/PriceTag';
+import VerifiedBadge from '../../components/VerifiedBadge';
+import AvailabilityBanner from '../../components/AvailabilityBanner';
+import LazyImage from '../../components/LazyImage';
+import ReviewsList from '../../components/ReviewsList';
+import ReviewForm from '../../components/ReviewForm';
 import type { Business, Product, Service } from '../../types/domain';
 
 export default function BusinessStorefront() {
   const { citySlug, businessSlug } = useParams<{ citySlug: string; businessSlug: string }>();
   const { addItem } = useMarketplaceCart();
+  const { t } = useI18n();
   const [business, setBusiness] = useState<Business | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [inDeliveryPool, setInDeliveryPool] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [reviewsKey, setReviewsKey] = useState(0);
 
   useEffect(() => {
     if (!citySlug || !businessSlug) return;
@@ -38,7 +48,7 @@ export default function BusinessStorefront() {
       }
       setBusiness(businessRow as Business);
 
-      const [{ data: productRows }, { data: serviceRows }] = await Promise.all([
+      const [{ data: productRows }, { data: serviceRows }, { data: poolRow }] = await Promise.all([
         supabase
           .from('products')
           .select('*')
@@ -53,9 +63,16 @@ export default function BusinessStorefront() {
           .eq('active', true)
           .eq('booking_enabled', true)
           .order('name'),
+        supabase
+          .from('delivery_pool_members')
+          .select('id')
+          .eq('business_id', businessRow.id)
+          .eq('active', true)
+          .maybeSingle(),
       ]);
       setProducts((productRows ?? []) as Product[]);
       setServices((serviceRows ?? []) as Service[]);
+      setInDeliveryPool(Boolean(poolRow));
       setLoading(false);
     })();
   }, [citySlug, businessSlug]);
@@ -69,13 +86,24 @@ export default function BusinessStorefront() {
     <div>
       <div className="w-full aspect-[3/1] bg-slate-900 rounded-xl mb-4 flex items-center justify-center overflow-hidden border border-slate-800">
         {business.cover_image_url ? (
-          <img src={business.cover_image_url} alt="" className="w-full h-full object-cover" />
+          <LazyImage src={business.cover_image_url} alt="" className="w-full h-full object-cover" />
         ) : (
           <Store className="w-8 h-8 text-slate-700" />
         )}
       </div>
 
-      <h1 className="text-white font-bold text-xl mb-1">{business.name}</h1>
+      <AvailabilityBanner status={business.availability_override} note={business.availability_note} />
+
+      <div className="flex items-center gap-2 mb-1 flex-wrap">
+        <h1 className="text-white font-bold text-xl">{business.name}</h1>
+        {business.verified && <VerifiedBadge />}
+        {inDeliveryPool && (
+          <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">
+            <Truck className="w-3.5 h-3.5" />
+            {t('storefront.deliveryPool')}
+          </span>
+        )}
+      </div>
       {business.description && <p className="text-slate-400 text-sm mb-3">{business.description}</p>}
 
       <div className="flex flex-wrap gap-4 text-xs text-slate-500 mb-8">
@@ -103,7 +131,7 @@ export default function BusinessStorefront() {
 
       {services.length > 0 && (
         <div className="mb-8">
-          <h2 className="text-white font-medium text-sm mb-3">Services</h2>
+          <h2 className="text-white font-medium text-sm mb-3">{t('storefront.services')}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {services.map((s) => (
               <Link
@@ -117,7 +145,7 @@ export default function BusinessStorefront() {
                 <div className="min-w-0 flex-1">
                   <p className="text-white text-sm">{s.name}</p>
                   <p className="text-xs text-slate-500">
-                    {s.duration_minutes} min{s.price != null ? ` · $${s.price}` : ''}
+                    {s.duration_minutes} min{s.price != null ? <> · <PriceTag usd={s.price} /></> : ''}
                   </p>
                 </div>
               </Link>
@@ -127,15 +155,15 @@ export default function BusinessStorefront() {
       )}
 
       {products.length > 0 && (
-        <div>
-          <h2 className="text-white font-medium text-sm mb-3">Products</h2>
+        <div className="mb-8">
+          <h2 className="text-white font-medium text-sm mb-3">{t('storefront.products')}</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {products.map((p) => (
               <div key={p.id} className="bg-slate-900 border border-slate-800 rounded-lg p-3">
                 <Link to={`/${citySlug}/business/${businessSlug}/product/${p.id}`}>
                   <div className="w-full aspect-square bg-slate-800 rounded-lg mb-2 flex items-center justify-center overflow-hidden">
                     {p.image_url ? (
-                      <img src={p.image_url} alt="" className="w-full h-full object-cover" />
+                      <LazyImage src={p.image_url} alt="" className="w-full h-full object-cover" />
                     ) : (
                       <Package className="w-5 h-5 text-slate-600" />
                     )}
@@ -143,7 +171,7 @@ export default function BusinessStorefront() {
                   <p className="text-white text-xs truncate">{p.name}</p>
                 </Link>
                 <div className="flex items-center justify-between mt-1">
-                  <span className="text-slate-400 text-xs">${p.sale_price ?? p.price}</span>
+                  <PriceTag usd={p.sale_price ?? p.price} className="text-slate-400 text-xs" />
                   <button
                     onClick={() =>
                       addItem(business.id, business.name, {
@@ -164,8 +192,15 @@ export default function BusinessStorefront() {
       )}
 
       {products.length === 0 && services.length === 0 && (
-        <p className="text-slate-500 text-sm text-center py-10">Nothing available yet.</p>
+        <p className="text-slate-500 text-sm text-center py-10">{t('storefront.nothingYet')}</p>
       )}
+
+      <div className="border-t border-slate-800 pt-6">
+        <ReviewsList key={reviewsKey} businessId={business.id} />
+        <div className="mt-3">
+          <ReviewForm businessId={business.id} onSubmitted={() => setReviewsKey((k) => k + 1)} />
+        </div>
+      </div>
     </div>
   );
 }

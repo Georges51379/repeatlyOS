@@ -33,6 +33,7 @@ export default function Onboarding() {
   const [whatsapp, setWhatsapp] = useState('');
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,6 +72,7 @@ export default function Onboarding() {
       email: email.trim() || null,
       address: address.trim() || null,
       status: 'pending_approval',
+      custom_field_values: customFieldValues,
     });
 
     setSubmitting(false);
@@ -279,6 +281,39 @@ export default function Onboarding() {
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
+
+              {/* Vertical-specific fields (migration
+                  20260914000012_business_type_custom_fields.sql) — a
+                  restaurant/hotel/etc. gets fields a generic form wouldn't
+                  ask for, driven entirely by business_types.custom_fields
+                  rather than a hardcoded per-type form. */}
+              {(selectedType?.custom_fields ?? [])
+                .filter((f) => f.applies_to === 'business')
+                .map((field) => (
+                  <div key={field.key}>
+                    <label className="block text-xs text-slate-400 mb-1">{field.label}</label>
+                    {field.type === 'select' ? (
+                      <select
+                        value={customFieldValues[field.key] ?? ''}
+                        onChange={(e) => setCustomFieldValues({ ...customFieldValues, [field.key]: e.target.value })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                      >
+                        <option value="">—</option>
+                        {(field.options ?? []).map((o) => (
+                          <option key={o} value={o}>
+                            {o}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        value={customFieldValues[field.key] ?? ''}
+                        onChange={(e) => setCustomFieldValues({ ...customFieldValues, [field.key]: e.target.value })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                      />
+                    )}
+                  </div>
+                ))}
 
               {error && <p className="text-xs text-red-400">{error}</p>}
 

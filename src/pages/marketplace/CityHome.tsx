@@ -2,11 +2,15 @@ import { useEffect, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { Search, Store } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useI18n } from '../../lib/i18n';
+import VerifiedBadge from '../../components/VerifiedBadge';
+import LazyImage from '../../components/LazyImage';
 import type { Business, City } from '../../types/domain';
 
 export default function CityHome() {
   const { citySlug } = useParams<{ citySlug: string }>();
   const navigate = useNavigate();
+  const { t } = useI18n();
   const [city, setCity] = useState<City | null>(null);
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,7 +79,7 @@ export default function CityHome() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search products, services, or businesses…"
+              placeholder={t('search.placeholder')}
               className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-10 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500"
             />
           </div>
@@ -95,7 +99,7 @@ export default function CityHome() {
       {filtered.length === 0 ? (
         <div className="text-center py-16">
           <Store className="w-10 h-10 text-slate-700 mx-auto mb-3" />
-          <p className="text-slate-400">No businesses found yet.</p>
+          <p className="text-slate-400">{t('browse.noBusinesses')}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
@@ -107,12 +111,15 @@ export default function CityHome() {
             >
               <div className="w-full aspect-video bg-slate-800 rounded-lg mb-3 flex items-center justify-center overflow-hidden">
                 {b.cover_image_url ? (
-                  <img src={b.cover_image_url} alt="" className="w-full h-full object-cover" />
+                  <LazyImage src={b.cover_image_url} alt="" className="w-full h-full object-cover" />
                 ) : (
                   <Store className="w-6 h-6 text-slate-600" />
                 )}
               </div>
-              <p className="text-white font-medium text-sm">{b.name}</p>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <p className="text-white font-medium text-sm">{b.name}</p>
+                {b.verified && <VerifiedBadge />}
+              </div>
               <p className="text-xs text-slate-500 capitalize">{b.business_type_key?.replace(/_/g, ' ')}</p>
             </Link>
           ))}

@@ -13,6 +13,7 @@ import {
   ShoppingCart,
   Settings as SettingsIcon,
   ArrowLeft,
+  UserCog,
 } from 'lucide-react';
 import { useCurrentBusiness } from '../hooks/useCurrentBusiness';
 import { useEnabledModules } from '../hooks/useEnabledModules';
@@ -26,6 +27,7 @@ const NAV_ITEMS = [
   { key: 'services', label: 'Services', icon: Wrench, path: 'services' },
   { key: 'bookings', label: 'Bookings', icon: CalendarClock, path: 'bookings' },
   { key: 'tasks', label: 'Tasks', icon: KanbanSquare, path: 'tasks' },
+  { key: 'staff', label: 'Staff', icon: UserCog, path: 'staff' },
   { key: 'subscriptions', label: 'Packages & Subscriptions', icon: Package, path: 'memberships' },
   { key: 'payments', label: 'Payments', icon: Receipt, path: 'payments' },
   { key: 'analytics', label: 'Analytics', icon: BarChart3, path: 'analytics' },

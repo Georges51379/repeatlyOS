@@ -62,12 +62,28 @@ export interface City {
   updated_at: string;
 }
 
+export interface CustomFieldDefinition {
+  key: string;
+  label: string;
+  type: 'text' | 'number' | 'boolean' | 'select' | 'date_range';
+  applies_to: 'business' | 'product' | 'service';
+  options?: string[];
+}
+
 export interface BusinessType {
   key: string;
   label: string;
   default_modules: string[];
+  /** Vertical-specific field definitions (migration
+   * 20260914000012_business_type_custom_fields.sql) — a restaurant vs. a
+   * hotel needs different fields on its products/services/business record;
+   * this is configuration data the form renders from, not a hardcoded
+   * per-type form. */
+  custom_fields: CustomFieldDefinition[];
   created_at: string;
 }
+
+export type BusinessAvailabilityStatus = 'normal' | 'closed_power_cut' | 'cash_only' | 'closed_temporary';
 
 export interface DeliveryConfig {
   pickup: boolean;
@@ -97,6 +113,19 @@ export interface Business {
   opening_hours: Record<string, unknown>;
   social_links: Record<string, unknown>;
   delivery_config: DeliveryConfig;
+  /** Manual override on top of `opening_hours` for things a recurring
+   * weekly schedule can't express — a scheduled power cut, a cash-only
+   * moment, an unplanned short closure (migration
+   * 20260914000008_availability_override.sql). */
+  availability_override: BusinessAvailabilityStatus;
+  availability_note: string | null;
+  availability_updated_at: string | null;
+  /** Distinct from `status = 'active'` (listing approval) — an explicit,
+   * admin-only signal that the business's real-world identity was actually
+   * checked (migration 20260914000010_verified_badge.sql). */
+  verified: boolean;
+  verified_at: string | null;
+  custom_field_values: Record<string, unknown>;
   /** Set automatically at insert time (default auth.uid()) — see
    * supabase/migrations/20260910000003_fix_business_insert_returning.sql for
    * why this exists: it's what makes a freshly-created business immediately
@@ -155,6 +184,18 @@ export interface Customer {
 
 export type BoardColumn = 'todo' | 'in_progress' | 'completed' | 'issue';
 
+/** migration 20260914000001_staff_members.sql */
+export interface StaffMember {
+  id: string;
+  business_id: string;
+  full_name: string;
+  phone: string | null;
+  role_title: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Task {
   id: string;
   business_id: string;
@@ -162,6 +203,9 @@ export interface Task {
   title: string;
   notes: string | null;
   assigned_to: string | null;
+  /** Real staff FK, added alongside the legacy free-text `assigned_to`
+   * (migration 20260914000001) — prefer this once a business has staff. */
+  assigned_staff_id: string | null;
   board_column: BoardColumn;
   due_at: string | null;
   created_at: string;
@@ -177,6 +221,7 @@ export interface Service {
   price: number | null;
   active: boolean;
   booking_enabled: boolean;
+  custom_field_values: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
@@ -189,6 +234,10 @@ export interface Booking {
   customer_id: string | null;
   service_id: string | null;
   staff: string | null;
+  /** Real staff FK, added alongside the legacy free-text `staff` column
+   * (migration 20260914000001) — required for the overlap-prevention
+   * exclusion constraint in migration 20260914000002 to apply. */
+  staff_id: string | null;
   scheduled_date: string;
   start_time: string;
   end_time: string;
@@ -252,6 +301,7 @@ export interface Product {
   image_url: string | null;
   active: boolean;
   marketplace_visible: boolean;
+  custom_field_values: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
@@ -300,6 +350,15 @@ export interface Order {
    * marketplace shopper rather than a merchant-side customer record. */
   customer_name: string | null;
   customer_phone: string | null;
+  /** Links several per-business orders from one multi-shop cart checkout
+   * into a shared delivery run (migration
+   * 20260914000007_cross_shop_delivery_groups.sql). */
+  delivery_group_id: string | null;
+  /** Internal guard against double-compensating inventory if an order is
+   * (incorrectly) moved between cancelled/refunded more than once —
+   * migration 20260914000003_inventory_auto_decrement.sql. Not meant to be
+   * set from the client. */
+  inventory_restocked: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -347,4 +406,116 @@ export interface AuditLogEntry {
   entity_id: string | null;
   metadata: Record<string, unknown>;
   created_at: string;
+}
+
+// ── Cross-shop delivery groups (migration 20260914000007) ──────────────────
+export type DeliveryGroupStatus = 'pending' | 'assigned' | 'delivered' | 'cancelled';
+
+export interface DeliveryGroup {
+  id: string;
+  city_id: string;
+  customer_name: string | null;
+  customer_phone: string;
+  delivery_address: string | null;
+  status: DeliveryGroupStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+// ── Shared delivery pool (migration 20260914000009) ─────────────────────────
+export interface DeliveryPoolMember {
+  id: string;
+  city_id: string;
+  business_id: string;
+  coverage_note: string | null;
+  active: boolean;
+  joined_at: string;
+}
+
+// ── Dual-currency exchange rate (migration 20260914000011) ──────────────────
+export interface ExchangeRate {
+  id: string;
+  base_currency: string;
+  quote_currency: string;
+  rate: number;
+  updated_by: string | null;
+  created_at: string;
+}
+
+// ── City-wide loyalty wallet (migration 20260914000006) ─────────────────────
+export interface LoyaltyWallet {
+  id: string;
+  city_id: string;
+  customer_phone: string;
+  balance_points: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LoyaltyTransaction {
+  id: string;
+  wallet_id: string;
+  business_id: string | null;
+  order_id: string | null;
+  points_delta: number;
+  reason: string;
+  created_at: string;
+}
+
+// ── Referrals (migration 20260914000014) ─────────────────────────────────────
+export interface CustomerReferral {
+  id: string;
+  business_id: string;
+  referrer_phone: string;
+  referred_phone: string;
+  order_id: string | null;
+  created_at: string;
+}
+
+// ── Verified reviews (migration 20260914000013) ─────────────────────────────
+export interface Review {
+  id: string;
+  business_id: string;
+  order_id: string | null;
+  booking_id: string | null;
+  customer_name: string | null;
+  customer_phone: string;
+  rating: number;
+  comment: string | null;
+  photo_url: string | null;
+  created_at: string;
+}
+
+// ── Advanced analytics RPC result shapes (migration 20260914000014) ────────
+export interface RevenueHeatmapPoint {
+  activity_date: string;
+  revenue: number;
+}
+
+export interface RevenueForecast {
+  floor_case: number;
+  likely_case: number;
+  best_case: number;
+  based_on_days: number;
+}
+
+export interface ChurnRiskCustomer {
+  customer_id: string;
+  full_name: string;
+  last_activity_at: string;
+  days_since_last_activity: number;
+  risk_level: 'low' | 'medium' | 'high';
+}
+
+export interface HealthScoreResult {
+  score: number;
+  revenue_trend_points: number;
+  completion_rate_points: number;
+  repeat_customer_points: number;
+  review_rating_points: number;
+}
+
+export interface ReferralLeaderboardEntry {
+  referrer_phone: string;
+  referral_count: number;
 }

@@ -129,6 +129,49 @@ export interface SmartSearchResult {
   allCities: City[];
 }
 
+export interface NearbyProduct {
+  id: string;
+  name: string;
+  price: number;
+  sale_price: number | null;
+  business_id: string;
+  business_name: string;
+  business_slug: string;
+  city_id: string;
+  distance_km: number;
+}
+
+// True GPS-radius search (closes the limitation documented at the top of
+// this file) — calls the `products_near` function from migration
+// 20260914000005 rather than the region-string fallback `smartSearch`
+// above uses. A plain client-side substring match on `name` narrows by
+// keyword, since `products_near` itself only does distance — good enough
+// for "near me" queries, which tend to be short and product-type-specific
+// rather than needing full-text stemming.
+export async function searchNearMe(
+  lat: number,
+  lng: number,
+  rawQuery: string,
+  radiusKm = 25,
+): Promise<NearbyProduct[]> {
+  const { data } = await supabase.rpc('products_near', {
+    origin_lat: lat,
+    origin_lng: lng,
+    radius_km: radiusKm,
+    result_limit: 50,
+  });
+  const results = (data ?? []) as NearbyProduct[];
+
+  const keywords = rawQuery
+    .toLowerCase()
+    .split(/\s+/)
+    .map((w) => w.replace(/[^a-z0-9]/g, ''))
+    .filter((w) => w && !STOPWORDS.has(w));
+  if (keywords.length === 0) return results.slice(0, 24);
+
+  return results.filter((r) => keywords.some((k) => r.name.toLowerCase().includes(k))).slice(0, 24);
+}
+
 // Searches the matched city first; if that comes up empty and the city has
 // a region, falls back to other marketplace-enabled cities in the same
 // region ("near Shekka" -> other North Lebanon cities). With no city

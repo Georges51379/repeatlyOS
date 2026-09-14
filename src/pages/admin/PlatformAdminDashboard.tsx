@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { ShieldCheck, Check, X, Plus, Fingerprint, Trash2, Copy } from 'lucide-react';
+import { ShieldCheck, Check, X, Plus, Fingerprint, Trash2, Copy, BadgeCheck } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useAdminRoles } from '../../hooks/useAdminRoles';
-import type { Business, BusinessSaasSubscription, City, SaasPlan, SignupRequest } from '../../types/domain';
+import type { Business, BusinessSaasSubscription, City, SaasPlan, SignupRequest, ExchangeRate } from '../../types/domain';
 import type { PasskeyListItem } from '@supabase/supabase-js';
 
 interface GeneratedInvite {
@@ -59,6 +59,9 @@ export default function PlatformAdminDashboard() {
   const [invite, setInvite] = useState<GeneratedInvite | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [exchangeRate, setExchangeRate] = useState<ExchangeRate | null>(null);
+  const [rateInput, setRateInput] = useState('');
+  const [savingRate, setSavingRate] = useState(false);
 
   const load = useCallback(async () => {
     const [citiesCount, businessesCount, activeCount, pendingCount, ordersCount, bookingsCount] = await Promise.all([
@@ -107,6 +110,17 @@ export default function PlatformAdminDashboard() {
       .eq('status', 'pending')
       .order('created_at', { ascending: true });
     setSignupRequests((requestRows ?? []) as SignupRequest[]);
+
+    const { data: rateRow } = await supabase
+      .from('exchange_rates')
+      .select('*')
+      .eq('base_currency', 'USD')
+      .eq('quote_currency', 'LBP')
+      .maybeSingle();
+    if (rateRow) {
+      setExchangeRate(rateRow as ExchangeRate);
+      setRateInput(String((rateRow as ExchangeRate).rate));
+    }
   }, []);
 
   useEffect(() => {
@@ -185,6 +199,28 @@ export default function PlatformAdminDashboard() {
 
   const changeSubscriptionStatus = async (businessId: string, status: string) => {
     await supabase.from('business_saas_subscriptions').update({ status }).eq('business_id', businessId);
+    await load();
+  };
+
+  const toggleVerified = async (business: Business) => {
+    await supabase.from('businesses').update({ verified: !business.verified }).eq('id', business.id);
+    await load();
+  };
+
+  const saveExchangeRate = async () => {
+    const rate = Number(rateInput);
+    if (!Number.isFinite(rate) || rate <= 0) {
+      setError('Enter a valid exchange rate.');
+      return;
+    }
+    setSavingRate(true);
+    setError(null);
+    if (exchangeRate) {
+      await supabase.from('exchange_rates').update({ rate }).eq('id', exchangeRate.id);
+    } else {
+      await supabase.from('exchange_rates').insert({ base_currency: 'USD', quote_currency: 'LBP', rate });
+    }
+    setSavingRate(false);
     await load();
   };
 
@@ -394,6 +430,29 @@ export default function PlatformAdminDashboard() {
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 mb-6">
+          <h2 className="text-white font-medium text-sm mb-1">USD → LBP exchange rate</h2>
+          <p className="text-xs text-slate-500 mb-3">
+            Manually set — the real parallel-market rate shoppers/merchants actually use doesn't reliably match any
+            single live API. Shown as a second price everywhere the marketplace renders USD.
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              value={rateInput}
+              onChange={(e) => setRateInput(e.target.value)}
+              className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+            />
+            <button
+              onClick={saveExchangeRate}
+              disabled={savingRate}
+              className="px-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-lg text-white text-sm font-semibold"
+            >
+              {savingRate ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 mb-6">
           <h2 className="text-white font-medium text-sm mb-3">Businesses &amp; plans</h2>
           {allBusinesses.length === 0 ? (
             <p className="text-slate-500 text-sm">No businesses yet.</p>
@@ -412,6 +471,10 @@ export default function PlatformAdminDashboard() {
                     </div>
                     {sub && (
                       <div className="flex items-center gap-2">
+                        <label className="flex items-center gap-1 text-xs text-blue-400" title="Verified badge — an explicit trust signal beyond listing approval">
+                          <input type="checkbox" checked={b.verified} onChange={() => toggleVerified(b)} className="accent-blue-500" />
+                          <BadgeCheck className="w-3.5 h-3.5" />
+                        </label>
                         <select
                           value={sub.plan_key}
                           onChange={(e) => changePlan(b.id, e.target.value)}
