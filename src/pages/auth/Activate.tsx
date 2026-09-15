@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Zap, KeyRound } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useAdminRoles } from '../../hooks/useAdminRoles';
 
 // The ONE bootstrap path in an otherwise passkey-only app: registering a
 // passkey requires an existing session (verified directly against the
@@ -13,17 +14,28 @@ import { useAuth } from '../../context/AuthContext';
 // whatever code they were given; it never sends anything itself.
 export default function Activate() {
   const { user, verifyCode, configured } = useAuth();
+  const { isPlatformAdmin, cityAdminOf, loading: rolesLoading } = useAdminRoles();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Covers opening the link an admin shared instead of typing the code —
-  // once authenticated that way, continue straight to passkey setup.
+  // Single redirect path for BOTH ways of getting here (clicking the
+  // admin's link, or typing the code by hand): once a session exists, wait
+  // for role lookup to resolve, then send a city/platform admin straight
+  // to /app (their role is already granted, nothing to onboard) and
+  // everyone else — a brand-new business owner — to /onboarding. Fixes a
+  // real bug: this used to hardcode /app for both paths, which worked for
+  // the "click the link" case (whose generated redirectTo already points
+  // at /onboarding when there's no cityId) but sent a business owner who
+  // typed the code by hand to /app instead, where they'd see an empty "no
+  // businesses yet" screen and need one extra click to find /onboarding.
   useEffect(() => {
-    if (user) navigate('/account/security?next=/app&mandatory=1');
-  }, [user, navigate]);
+    if (!user || rolesLoading) return;
+    const next = isPlatformAdmin || cityAdminOf.length > 0 ? '/app' : '/onboarding';
+    navigate(`/account/security?next=${next}&mandatory=1`);
+  }, [user, rolesLoading, isPlatformAdmin, cityAdminOf, navigate]);
 
   const handleVerifyCode = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,7 +47,9 @@ export default function Activate() {
       setError(verifyError);
       return;
     }
-    navigate('/account/security?next=/app&mandatory=1');
+    // Redirect happens via the useEffect above once `user` updates —
+    // verifyCode() establishes the session through Supabase's own
+    // onAuthStateChange, which AuthContext already listens for.
   };
 
   return (

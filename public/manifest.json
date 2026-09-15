@@ -1,8 +1,8 @@
 {
   "name": "RepeatlyOS",
   "short_name": "RepeatlyOS",
-  "description": "Business management platform for repeat-service businesses",
-  "start_url": "/",
+  "description": "City marketplace and business operating system for local shops in Lebanon",
+  "start_url": "/app",
   "display": "standalone",
   "background_color": "#020617",
   "theme_color": "#2563eb",
@@ -11,11 +11,10 @@
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ],
-  "categories": ["business", "productivity"],
+  "categories": ["business", "productivity", "shopping"],
   "shortcuts": [
-    { "name": "New Booking",   "url": "/dashboard/bookings",  "description": "Create a new booking" },
-    { "name": "Customers",     "url": "/dashboard/customers", "description": "View customers" },
-    { "name": "Payments",      "url": "/dashboard/payments",  "description": "Manage payments" },
-    { "name": "Health Score",  "url": "/dashboard/health",    "description": "Check business health" }
+    { "name": "My businesses", "url": "/app", "description": "See the businesses you manage" },
+    { "name": "Cities",        "url": "/cities", "description": "Browse city marketplaces" },
+    { "name": "Discover",      "url": "/discover", "description": "Search for products and services" }
   ]
 }
