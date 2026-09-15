@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 
 interface EmptyStateProps {
-  type: 'bookings' | 'customers' | 'payments' | 'tasks' | 'products' | 'staff' | 'reminders' | 'invoices' | 'packages' | 'subscriptions' | 'generic';
+  type: 'bookings' | 'customers' | 'payments' | 'tasks' | 'products' | 'staff' | 'reminders' | 'invoices' | 'packages' | 'subscriptions' | 'orders' | 'services' | 'inventory' | 'memberships' | 'generic';
   search?: string;
   onClear?: () => void;
   createLabel?: string;
@@ -89,6 +89,38 @@ const CONFIGS = {
     cta: 'View customers',
     tip: '💡 Tip: Set renewal reminders 7 days before expiry to maximize retention.',
     tipTo: '/dashboard/reminders',
+  },
+  orders: {
+    emoji: '🧾',
+    title: 'No orders yet',
+    sub: 'Orders placed in-store or from your marketplace storefront will show up here.',
+    cta: 'Record an order',
+    tip: '',
+    tipTo: '',
+  },
+  services: {
+    emoji: '🔧',
+    title: 'No services yet',
+    sub: 'Add a service customers can book — a haircut, a repair, a session.',
+    cta: 'Add first service',
+    tip: '',
+    tipTo: '',
+  },
+  inventory: {
+    emoji: '📦',
+    title: 'Nothing tracked yet',
+    sub: 'Track stock levels for a product to get low-stock alerts here.',
+    cta: 'Track a product',
+    tip: '',
+    tipTo: '',
+  },
+  memberships: {
+    emoji: '🎟️',
+    title: 'No packages or subscriptions',
+    sub: 'Sell a session package or a recurring subscription to a customer.',
+    cta: 'Add first plan',
+    tip: '',
+    tipTo: '',
   },
   generic: {
     emoji: '🔍',

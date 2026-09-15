@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle2, X, AlertCircle, Info } from 'lucide-react';
+import { CheckCircle2, X, AlertCircle, AlertTriangle, Info } from 'lucide-react';
 
 interface ToastProps {
   message: string;
-  type?: 'success' | 'info' | 'warning';
+  type?: 'success' | 'info' | 'warning' | 'error';
   onClose: () => void;
 }
 
 const config = {
-  success: { icon: CheckCircle2, color: 'text-emerald-400', ring: 'border-emerald-500/25', bar: 'bg-emerald-500' },
-  info:    { icon: Info,         color: 'text-blue-400',    ring: 'border-blue-500/25',    bar: 'bg-blue-500' },
-  warning: { icon: AlertCircle,  color: 'text-amber-400',   ring: 'border-amber-500/25',   bar: 'bg-amber-500' },
+  success: { icon: CheckCircle2,  color: 'text-emerald-400', ring: 'border-emerald-500/25', bar: 'bg-emerald-500' },
+  info:    { icon: Info,          color: 'text-blue-400',    ring: 'border-blue-500/25',    bar: 'bg-blue-500' },
+  warning: { icon: AlertTriangle, color: 'text-amber-400',   ring: 'border-amber-500/25',   bar: 'bg-amber-500' },
+  error:   { icon: AlertCircle,   color: 'text-red-400',     ring: 'border-red-500/25',     bar: 'bg-red-500' },
 };
 
 export default function Toast({ message, type = 'success', onClose }: ToastProps) {

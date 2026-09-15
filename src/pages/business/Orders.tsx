@@ -1,21 +1,20 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Plus, ShoppingCart, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Plus, ShoppingCart, Trash2, DollarSign, Clock, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useCurrentBusiness } from '../../hooks/useCurrentBusiness';
 import { hasBusinessPermission } from '../../lib/authz';
+import PageHeader from '../../components/PageHeader';
+import SearchInput from '../../components/SearchInput';
+import StatCard from '../../components/StatCard';
+import StatusBadge from '../../components/StatusBadge';
+import Modal from '../../components/Modal';
+import Toast from '../../components/Toast';
+import EmptyState from '../../components/EmptyState';
+import { SkeletonCard } from '../../components/Skeletons';
 import type { Customer, Order, OrderItem, OrderStatus, Product } from '../../types/domain';
 
 const STATUSES: OrderStatus[] = ['new', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled', 'refunded'];
-const STATUS_STYLES: Record<OrderStatus, string> = {
-  new: 'bg-slate-700/40 text-slate-300',
-  confirmed: 'bg-blue-500/15 text-blue-400',
-  preparing: 'bg-amber-500/15 text-amber-400',
-  ready: 'bg-purple-500/15 text-purple-400',
-  completed: 'bg-emerald-500/15 text-emerald-400',
-  cancelled: 'bg-red-500/15 text-red-400',
-  refunded: 'bg-red-500/15 text-red-400',
-};
 
 interface LineItem {
   product_id: string;
@@ -32,12 +31,14 @@ export default function Orders() {
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [customerId, setCustomerId] = useState('');
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [selectedProduct, setSelectedProduct] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const canManage = business ? hasBusinessPermission(memberships, business.id, 'orders.manage') : false;
 
@@ -68,9 +69,22 @@ export default function Orders() {
     load();
   }, [load]);
 
-  if (!business) return null;
+  const customerName = useCallback((id: string | null) => customers.find((c) => c.id === id)?.full_name ?? 'Walk-in', [customers]);
 
-  const customerName = (id: string | null) => customers.find((c) => c.id === id)?.full_name ?? 'Walk-in';
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return orders;
+    return orders.filter((o) => customerName(o.customer_id).toLowerCase().includes(q) || o.status.includes(q));
+  }, [orders, search, customerName]);
+
+  const stats = useMemo(() => {
+    const pending = orders.filter((o) => ['new', 'confirmed', 'preparing', 'ready'].includes(o.status)).length;
+    const completed = orders.filter((o) => o.status === 'completed').length;
+    const revenue = orders.filter((o) => o.status === 'completed').reduce((sum, o) => sum + Number(o.total_amount), 0);
+    return { total: orders.length, pending, completed, revenue };
+  }, [orders]);
+
+  if (!business) return null;
 
   const addLineItem = () => {
     const product = products.find((p) => p.id === selectedProduct);
@@ -130,43 +144,63 @@ export default function Orders() {
     setShowAdd(false);
     setCustomerId('');
     setLineItems([]);
+    setToast({ message: 'Order created.', type: 'success' });
     await load();
   };
 
   const setStatus = async (id: string, status: OrderStatus) => {
-    await supabase.from('orders').update({ status }).eq('id', id);
+    const { error: updateError } = await supabase.from('orders').update({ status }).eq('id', id);
+    if (updateError) {
+      setToast({ message: updateError.message, type: 'error' });
+      return;
+    }
     await load();
   };
 
   return (
     <div className="max-w-4xl">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-white font-semibold text-lg">Orders</h1>
-          <p className="text-slate-500 text-sm">{business.name}</p>
-        </div>
-        {canManage && (
-          <button
-            onClick={() => setShowAdd(true)}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
-          >
-            <Plus className="w-4 h-4" /> New order
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title="Orders"
+        subtitle={business.name}
+        actionLabel={canManage ? 'New order' : undefined}
+        actionIcon={Plus}
+        onAction={() => setShowAdd(true)}
+      />
 
-      {loading ? null : orders.length === 0 ? (
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-10 text-center">
-          <ShoppingCart className="w-8 h-8 text-slate-700 mx-auto mb-3" />
-          <p className="text-white font-medium mb-1">No orders yet.</p>
-          {products.length === 0 && (
-            <p className="text-slate-500 text-sm">Add products first, then record your first order.</p>
-          )}
+      {orders.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          <StatCard title="Total orders" value={stats.total} icon={ShoppingCart} accent="blue" />
+          <StatCard title="In progress" value={stats.pending} icon={Clock} accent="amber" />
+          <StatCard title="Completed" value={stats.completed} icon={CheckCircle2} accent="emerald" />
+          <StatCard title="Revenue collected" value={`$${stats.revenue.toFixed(2)}`} icon={DollarSign} accent="purple" />
         </div>
+      )}
+
+      {orders.length > 0 && (
+        <div className="mb-4">
+          <SearchInput value={search} onChange={setSearch} placeholder="Search by customer or status…" className="max-w-sm" />
+        </div>
+      )}
+
+      {loading ? (
+        <div className="space-y-3">
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+      ) : filtered.length === 0 ? (
+        orders.length === 0 ? (
+          <div className="bg-slate-900 border border-slate-800 rounded-xl">
+            <EmptyState type="orders" onCreate={canManage ? () => setShowAdd(true) : undefined} />
+          </div>
+        ) : (
+          <div className="bg-slate-900 border border-slate-800 rounded-xl">
+            <EmptyState type="generic" search={search} onClear={() => setSearch('')} />
+          </div>
+        )
       ) : (
         <div className="space-y-3">
-          {orders.map((o) => (
-            <div key={o.id} className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          {filtered.map((o) => (
+            <div key={o.id} className="bg-slate-900 border border-slate-800 rounded-xl p-4 card-hover">
               <div className="flex items-center justify-between mb-2">
                 <div>
                   <p className="text-white font-medium text-sm">{customerName(o.customer_id)}</p>
@@ -178,7 +212,7 @@ export default function Orders() {
                     <select
                       value={o.status}
                       onChange={(e) => setStatus(o.id, e.target.value as OrderStatus)}
-                      className={`text-xs px-2 py-0.5 rounded-full border-0 focus:outline-none ${STATUS_STYLES[o.status]}`}
+                      className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-blue-500"
                     >
                       {STATUSES.map((s) => (
                         <option key={s} value={s}>
@@ -187,7 +221,7 @@ export default function Orders() {
                       ))}
                     </select>
                   ) : (
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_STYLES[o.status]}`}>{o.status}</span>
+                    <StatusBadge status={o.status} />
                   )}
                 </div>
               </div>
@@ -204,92 +238,87 @@ export default function Orders() {
       )}
 
       {showAdd && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 w-full max-w-sm">
-            <h2 className="text-white font-semibold mb-4">New order</h2>
-            <div className="space-y-3">
+        <Modal title="New order" onClose={() => { setShowAdd(false); setLineItems([]); setError(null); }} icon={<ShoppingCart className="w-4 h-4 text-blue-400" />}>
+          <div className="space-y-3">
+            <select
+              value={customerId}
+              onChange={(e) => setCustomerId(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+            >
+              <option value="">Walk-in (no customer)</option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.full_name}
+                </option>
+              ))}
+            </select>
+
+            <div className="flex gap-2">
               <select
-                value={customerId}
-                onChange={(e) => setCustomerId(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                value={selectedProduct}
+                onChange={(e) => setSelectedProduct(e.target.value)}
+                className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
               >
-                <option value="">Walk-in (no customer)</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.full_name}
+                <option value="">Select product…</option>
+                {products.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} — ${p.sale_price ?? p.price}
                   </option>
                 ))}
               </select>
+              <button
+                onClick={addLineItem}
+                disabled={!selectedProduct}
+                className="px-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 rounded-lg text-slate-300"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
 
-              <div className="flex gap-2">
-                <select
-                  value={selectedProduct}
-                  onChange={(e) => setSelectedProduct(e.target.value)}
-                  className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-                >
-                  <option value="">Select product…</option>
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} — ${p.sale_price ?? p.price}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  onClick={addLineItem}
-                  disabled={!selectedProduct}
-                  className="px-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 rounded-lg text-slate-300"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
-              </div>
-
-              {lineItems.length > 0 && (
-                <div className="space-y-1.5 border-t border-slate-800 pt-3">
-                  {lineItems.map((li, i) => (
-                    <div key={i} className="flex items-center justify-between text-sm">
-                      <span className="text-slate-300">
-                        {li.quantity} × {li.product_name}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-500">${(li.unit_price * li.quantity).toFixed(2)}</span>
-                        <button onClick={() => removeLineItem(i)} className="text-slate-600 hover:text-red-400">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+            {lineItems.length > 0 && (
+              <div className="space-y-1.5 border-t border-slate-800 pt-3">
+                {lineItems.map((li, i) => (
+                  <div key={i} className="flex items-center justify-between text-sm">
+                    <span className="text-slate-300">
+                      {li.quantity} × {li.product_name}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-500">${(li.unit_price * li.quantity).toFixed(2)}</span>
+                      <button onClick={() => removeLineItem(i)} className="text-slate-600 hover:text-red-400">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
-                  ))}
-                  <div className="flex items-center justify-between text-sm font-semibold pt-2 border-t border-slate-800">
-                    <span className="text-white">Total</span>
-                    <span className="text-white">${total.toFixed(2)}</span>
                   </div>
+                ))}
+                <div className="flex items-center justify-between text-sm font-semibold pt-2 border-t border-slate-800">
+                  <span className="text-white">Total</span>
+                  <span className="text-white">${total.toFixed(2)}</span>
                 </div>
-              )}
-            </div>
-
-            {error && <p className="text-xs text-red-400 mt-3">{error}</p>}
-
-            <div className="flex gap-2 mt-5">
-              <button
-                onClick={() => {
-                  setShowAdd(false);
-                  setLineItems([]);
-                  setError(null);
-                }}
-                className="flex-1 border border-slate-800 hover:border-slate-700 text-slate-300 text-sm font-semibold py-2.5 rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreate}
-                disabled={saving || lineItems.length === 0}
-                className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-lg transition-colors"
-              >
-                {saving ? 'Creating…' : 'Create order'}
-              </button>
-            </div>
+              </div>
+            )}
           </div>
-        </div>
+
+          {error && <p className="text-xs text-red-400 mt-3">{error}</p>}
+
+          <div className="flex gap-2 mt-5">
+            <button
+              onClick={() => { setShowAdd(false); setLineItems([]); setError(null); }}
+              className="flex-1 border border-slate-800 hover:border-slate-700 text-slate-300 text-sm font-semibold py-2.5 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleCreate}
+              disabled={saving || lineItems.length === 0}
+              className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-lg transition-colors"
+            >
+              {saving ? 'Creating…' : 'Create order'}
+            </button>
+          </div>
+        </Modal>
       )}
+
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }
