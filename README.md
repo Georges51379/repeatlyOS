@@ -70,13 +70,13 @@ npm run test        # vitest — unit tests for the parsing/math-heavy logic
    (`.env.example` has the exact variable names).
 2. Apply the schema: `supabase link --project-ref <your-ref>` then
    `supabase db push` — applies every file in `supabase/migrations/` in
-   order. There are currently 40 migrations building up the full schema
+   order. There are currently 41 migrations building up the full schema
    incrementally; read a few if you want the "why", not just the "what" —
    this codebase documents its own reasoning unusually heavily.
 3. Run `supabase/seed.sql` once (via the SQL editor, or
    `supabase db reset` locally) for the business-type templates and the
    first launch city.
-4. Deploy the Edge Functions in `supabase/functions/` (`admin-generate-invite`,
+4. Deploy the Edge Functions in `supabase/functions/` (`verify-login`,
    `admin-manage-passkeys`, `decrypt-invite-email`,
    `decrypt-customer-address`) — `supabase functions deploy <name>` each, or
    via the Dashboard.
@@ -103,31 +103,42 @@ loyalty balance) and an automated tenant-isolation check. See
 
 ## How someone actually becomes a user
 
-There's no self-serve email/password signup — every account starts as a
-**one-time activation code a platform admin generates and relays out of band**
-(WhatsApp, phone, in person). Nothing is ever emailed automatically. Once
-activated, the very first thing a new session does is register a passkey —
-there's no other way back in afterward.
+No passwords, no codes, no emailed links — every login page works the same
+way: type your email, click **Verify**, and if you're authorized, register
+a passkey right there (or just use your existing one on repeat visits).
+See `docs/REPEATLYOS_SECURITY_MODEL.md` → "Bootstrap flow reworked" for
+exactly how a real session is established with nothing ever shown to or
+typed by the user.
 
-1. A prospective business owner submits name + email at `/signup` (just an
-   unauthenticated `signup_requests` row — no account exists yet).
-2. A platform admin approves it from `/platform-admin`, which generates a
-   one-time code/link and hands it back to the admin to relay themselves.
-3. The person enters it at `/activate`, sets up a passkey at
-   `/account/security`, and lands on `/onboarding`.
-4. They pick a city, a business type (this drives which dashboard modules —
-   Products, Bookings, Staff, etc. — are turned on by default, and which
+**Business owner:**
+
+1. Submit name + email at `/signup` (just an unauthenticated
+   `signup_requests` row — no account exists yet).
+2. A platform admin approves it from `/platform-admin` — this only flips
+   the request's status; it doesn't create an account or send anything.
+3. The person goes to `/app`, enters that same email, clicks Verify, and
+   registers a passkey — landing on `/onboarding`.
+4. They pick a city, a business type (this drives which dashboard modules
+   — Products, Bookings, Staff, etc. — are turned on by default, and which
    extra fields the form shows), and submit. The business is created with
    `status = 'pending_approval'` and they're made its owner immediately.
 5. **They can use their dashboard right away** — add products, take orders,
    manage customers — even before a platform/city admin approves it.
    `pending_approval` only hides the business from the *public* marketplace;
-   it does not block the owner's own use of their dashboard. Approval is
-   what makes the business (and its products/services) visible to shoppers
-   browsing the city.
+   it does not block the owner's own use of their dashboard.
 
-City admins are granted the same way (an admin-generated invite), never by
-self-registering.
+**City admin:** a platform admin adds their email against a city from
+`/platform-admin` (no account needs to exist yet) — they then verify and
+register a passkey at `/city-admin-login`. Never self-registered.
+
+**Platform admin:** the one role still requiring direct SQL access
+(`insert into platform_admins ...`, see below) — intentional friction so
+this can never be granted through the app itself. Once granted, sign-in
+itself works the same way, at `/super-admin`.
+
+Lost your passkey or switched devices? Same flow, any role: email + Verify
+re-establishes a session and lets you register a new one — fully
+self-service, no admin involvement needed.
 
 ---
 
@@ -148,7 +159,7 @@ authorization boundary; every table has RLS enabled with policies backed by
 ```text
 repeatlyos/
 ├── supabase/
-│   ├── migrations/     # 40 files, applied in order — the real schema
+│   ├── migrations/     # 41 files, applied in order — the real schema
 │   ├── functions/      # 4 Edge Functions (service-role-gated operations)
 │   └── tests/database/ # pgTAP tests
 ├── src/
@@ -159,7 +170,7 @@ repeatlyos/
 │   │   ├── business/              # real merchant dashboard (Supabase-backed)
 │   │   ├── admin/                 # platform + city admin
 │   │   ├── onboarding/            # business registration wizard
-│   │   ├── auth/                  # signup, activation, passkeys
+│   │   ├── auth/                  # signup, per-role sign-in pages, passkeys
 │   │   └── dashboard/             # legacy mock demo — see note at the top
 │   └── types/domain.ts            # hand-written mirror of the SQL schema
 └── docs/                          # architecture, security model, progress log —

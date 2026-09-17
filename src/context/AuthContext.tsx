@@ -13,23 +13,20 @@ interface AuthContextType {
   user: User | null;
   memberships: BusinessMembershipWithBusiness[];
   refreshMemberships: () => Promise<void>;
-  /** Platform-admin-only: creates (or reactivates) an account and returns
-   * a one-time code + link — WITHOUT sending any automated email. The
-   * admin relays it to the person themselves however they choose. Runs
-   * through the `admin-generate-invite` Edge Function since only the
-   * service-role Admin API can generate a credential without also
-   * sending it. Optionally grants city_admin for `cityId` in the same
-   * call. */
-  adminGenerateInvite: (
+  /** The entire "how do I sign in for the first time, or after losing my
+   * passkey" flow, in one call: checks whether `email` is currently
+   * authorized for `context` (via the `verify-login` Edge Function, which
+   * holds all the actual eligibility rules — platform_admin requires an
+   * existing platform_admins grant, city_admin an existing grant or an
+   * active+verified invite, business_owner an existing membership or an
+   * approved signup request), and if so establishes a real session
+   * invisibly — no code or link is ever shown to the caller. On success,
+   * the caller is already signed in and can immediately call
+   * `registerPasskey()`; `redirectTo` says where to send them afterward. */
+  verifyAndAuthorize: (
     email: string,
-    fullName: string,
-    cityId?: string,
-  ) => Promise<{ code: string | null; link: string | null; error: string | null }>;
-  /** Verifies the one-time code an admin gave the user out of band (see
-   * `adminGenerateInvite`). If they were given the link instead and
-   * clicked it, the session is established automatically on page load —
-   * no action needed here for that path. */
-  verifyCode: (email: string, code: string) => Promise<{ error: string | null }>;
+    context: 'platform_admin' | 'city_admin' | 'business_owner',
+  ) => Promise<{ redirectTo: string | null; error: string | null }>;
   /** Passwordless sign-in with an existing passkey. Triggers the browser's
    * native WebAuthn picker — cross-device sign-in (scan a QR code with your
    * phone) is offered automatically there when available; RepeatlyOS doesn't
@@ -104,29 +101,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [refreshMemberships]);
 
-  const adminGenerateInvite = async (email: string, fullName: string, cityId?: string) => {
+  const verifyAndAuthorize = async (
+    email: string,
+    context: 'platform_admin' | 'city_admin' | 'business_owner',
+  ) => {
     if (!isSupabaseConfigured) {
-      return { code: null, link: null, error: 'Supabase is not configured yet. See .env.example.' };
+      return { redirectTo: null, error: 'Supabase is not configured yet. See .env.example.' };
     }
-    // Business-owner activations land on /onboarding to register their
-    // business; city-admin activations land straight on /app, since the
-    // role is already granted. Either way it's passkey setup first
-    // (`mandatory=1` — skipping would mean the account has no way to ever
-    // sign in again, since login is passkey-only).
-    const next = cityId ? '/app' : '/onboarding';
-    const redirectTo = `${window.location.origin}/account/security?next=${next}&mandatory=1`;
-    const { data, error } = await supabase.functions.invoke<{ code: string; link: string }>(
-      'admin-generate-invite',
-      { body: { email, fullName, cityId, redirectTo } },
+    const { data, error } = await supabase.functions.invoke<{ tokenHash: string; redirectTo: string }>(
+      'verify-login',
+      { body: { email, context } },
     );
-    if (error) return { code: null, link: null, error: error.message };
-    return { code: data?.code ?? null, link: data?.link ?? null, error: null };
-  };
-
-  const verifyCode = async (email: string, code: string) => {
-    if (!isSupabaseConfigured) return { error: 'Supabase is not configured yet. See .env.example.' };
-    const { error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' });
-    return { error: error?.message ?? null };
+    if (error || !data) {
+      return { redirectTo: null, error: error?.message ?? 'Could not verify this email.' };
+    }
+    // The Edge Function already confirmed eligibility and generated a
+    // one-time token server-side — this consumes it immediately, in the
+    // same flow, with nothing ever shown to or typed by the person. See
+    // verify-login's own header comment for exactly why this is safe.
+    const { error: verifyError } = await supabase.auth.verifyOtp({ token_hash: data.tokenHash, type: 'email' });
+    if (verifyError) return { redirectTo: null, error: verifyError.message };
+    return { redirectTo: data.redirectTo, error: null };
   };
 
   const signInWithPasskey = async () => {
@@ -185,8 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: session?.user ?? null,
         memberships,
         refreshMemberships,
-        adminGenerateInvite,
-        verifyCode,
+        verifyAndAuthorize,
         signInWithPasskey,
         registerPasskey,
         listPasskeys,

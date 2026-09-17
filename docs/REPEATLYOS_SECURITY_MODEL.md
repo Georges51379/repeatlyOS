@@ -27,6 +27,74 @@
   add a passkey, sign out, sign back in with only the passkey) is the only
   way to confirm the full flow works.
 
+### Bootstrap flow reworked (2026-09-17): email + Verify, no code or link
+
+Replaces the original code/link activation flow entirely (`/activate`,
+`admin-generate-invite`, `AuthContext.adminGenerateInvite`/`verifyCode` —
+all removed), per explicit user feedback that it felt unpolished. The
+constraint that made a code/link necessary in the first place hasn't
+changed — `registerPasskey()` still requires an existing session, so
+*some* one-time credential still has to exist to bootstrap that first
+session — what changed is that it's never surfaced to a human anymore.
+
+**The mechanism** (`supabase/functions/verify-login`): a visitor types
+only their email and clicks "Verify." The function checks eligibility for
+the requested role server-side (see below), and if authorized, calls
+`admin.generateLink` exactly as the old flow did — but instead of
+returning the human-readable `email_otp`/`action_link` for someone to
+type or click, it returns the `hashed_token` also present in that same
+response. The client immediately calls
+`supabase.auth.verifyOtp({ token_hash, type: 'email' })` with it, in the
+same round trip — a real session is established with nothing ever shown
+to or typed by anyone. Same underlying Supabase primitive as before
+(confirmed still work via `type: 'email'` regardless of the link's own
+`verification_type`, per the finding recorded further below in this file),
+just never surfaced as a "type this code" step.
+
+**Eligibility, checked by `verify-login` before any account is ever
+created or session issued:**
+
+- `platform_admin` — requires an **existing** account already holding a
+  `platform_admins` row. This function never creates that grant — the
+  "intentional friction" of requiring direct SQL access to become a
+  platform admin (see below) is unchanged, only how an *already-admin*
+  account signs in changed.
+- `city_admin` — requires either an existing `city_admins` grant, or an
+  active + verified row in the new `city_admin_invites` table (migration
+  `20260917000001`), which a platform admin creates by email alone from
+  `/platform-admin` — no account needs to exist yet at invite time. A
+  matching invite is promoted into a real `city_admins` row on first
+  successful verify.
+- `business_owner` — requires either an existing active
+  `business_memberships` row, or a `signup_requests` row with
+  `status = 'approved'`. Approving a signup request now only flips that
+  status — it no longer creates an account or generates anything itself;
+  the applicant verifies themselves at `/app` afterward.
+
+A brand-new `auth.users` account is created inside `verify-login` **only
+after** the eligibility check above passes — never unconditionally. This
+also means account recovery (a lost device, a new browser) is now fully
+self-service for every role: the same email + Verify flow re-establishes a
+session and lets someone register a fresh passkey, where previously the
+only path back in for a business owner or city admin was asking a platform
+admin to regenerate a code by hand.
+
+**Where each role signs in now:**
+
+- Platform admin: `/super-admin` (unchanged path, rebuilt UI).
+- City admin: `/city-admin-login` (new — no `cityId` in the URL; resolved
+  server-side from the invite/grant, and a shopper can reach it from a
+  small "City Admin" link in the marketplace footer).
+- Business owner: `/app` itself, when signed out (`AppHome.tsx` renders a
+  real sign-in form in that state) — `/login` still exists only as a
+  redirect to `/app`, kept for any old links/bookmarks.
+
+Rate limited via the new `auth_verify_attempts` table — every attempt is
+logged regardless of outcome (the same discipline as
+`guest_submission_log`, migration `20260914000004`), which is what
+actually prevents this endpoint from being usable to brute-force which
+emails are eligible for which role, not just successes.
+
 ## Data Encryption
 
 **At rest and in transit — already true today, no code required.** Supabase

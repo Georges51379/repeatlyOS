@@ -3,13 +3,20 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ShieldCheck, Fingerprint } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useAdminRoles } from '../../hooks/useAdminRoles';
+import EmailVerifyPanel from '../../components/EmailVerifyPanel';
 
-// A separate entry point from the regular business/city-admin /login, per
-// the user's explicit request — same underlying auth (passkey only — see
-// /activate for the one-time bootstrap path, deliberately not offered
-// here), just its own page rather than shared with everyone else. The
-// actual authorization boundary is still the platform_admins grant (RLS),
-// not this page's existence — reaching this URL grants nothing by itself.
+// A separate entry point from the regular business/city-admin login, per
+// the user's explicit request — same underlying auth (passkey only), just
+// its own page rather than shared with everyone else. The actual
+// authorization boundary is still the platform_admins grant (RLS), not
+// this page's existence — reaching this URL grants nothing by itself.
+//
+// Two independent ways in, same as every login page in the app now
+// (2026-09-17 rework — replaces the old code/link activation flow):
+//   1. "Sign in with a passkey" — for a device that already has one.
+//   2. Email + Verify (EmailVerifyPanel) — for first time, or a lost
+//      passkey; only proceeds if this email actually holds a
+//      platform_admins grant (checked server-side by verify-login).
 export default function SuperAdminLogin() {
   const { user, signInWithPasskey, signOut, configured } = useAuth();
   const { isPlatformAdmin, loading: rolesLoading } = useAdminRoles();
@@ -28,6 +35,7 @@ export default function SuperAdminLogin() {
     const { error: passkeyError } = await signInWithPasskey();
     setPasskeySubmitting(false);
     if (passkeyError) setError(passkeyError);
+    // On success, the useEffect above redirects once isPlatformAdmin resolves.
   };
 
   const notAdmin = user && !rolesLoading && !isPlatformAdmin;
@@ -77,12 +85,7 @@ export default function SuperAdminLogin() {
 
               {error && <p className="text-xs text-red-400 mt-3">{error}</p>}
 
-              <p className="text-xs text-slate-500 mt-5 text-center">
-                No passkey set up yet?{' '}
-                <Link to="/activate" className="text-blue-400 hover:text-blue-300">
-                  Activate your account
-                </Link>
-              </p>
+              <EmailVerifyPanel context="platform_admin" onDone={(to) => navigate(to)} />
             </>
           )}
         </div>

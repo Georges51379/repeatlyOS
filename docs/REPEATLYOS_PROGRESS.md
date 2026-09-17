@@ -1217,22 +1217,87 @@ and the encryption/finalize follow-up), not repeated here — summary:
   demo snapshot — done only after explicit confirmation, since the two
   histories shared no common ancestor.
 
+## Login/Auth Rework (2026-09-17): email + Verify, no code or link
+
+Deployed to production (Vercel) since the previous entries — confirmed
+working: migrations pushed, Edge Functions deployed, RP ID corrected to
+the real domain, `boutros.georges513@gmail.com` promoted to platform
+admin. Two real issues surfaced live and got fixed the same day:
+
+- Vercel had no SPA-fallback rewrite, so any direct navigation or refresh
+  to a client-side route (`/super-admin`, `/app`, anything but `/`) 404'd
+  — only in-app `<Link>` clicks worked. Fixed with `vercel.json`
+  (`rewrites` + the security headers `public/_headers` never actually
+  applied on Vercel).
+- The Supabase project's passkey Relying Party ID was still `localhost`
+  from local dev, which WebAuthn correctly rejects once the real domain is
+  live. Fixed in the Supabase Dashboard; documented that changing it
+  invalidates every passkey registered under the old one (expected, not a
+  bug — a fresh passkey had to be registered afterward regardless).
+
+Then, explicit user feedback: the code/link activation flow (`/activate`,
+one-time codes relayed by hand) felt "unprofessional... not modern."
+Replaced entirely with a unified flow across all three roles — type an
+email, click Verify, register/use a passkey right there, nothing else.
+Full technical writeup in `docs/REPEATLYOS_SECURITY_MODEL.md` →
+"Bootstrap flow reworked." Summary of what changed:
+
+- New migration `20260917000001`: `city_admin_invites` (lets a platform
+  admin grant city-admin access by email alone, before an account exists)
+  and `auth_verify_attempts` (rate limiting for the new endpoint).
+- New Edge Function `verify-login` replaces `admin-generate-invite`
+  (deleted) — checks role eligibility server-side, then establishes a
+  session using `generateLink`'s `hashed_token` directly via
+  `verifyOtp({ token_hash, type: 'email' })`, instead of surfacing the
+  human-readable code/link half of that same API response.
+- `AuthContext.adminGenerateInvite`/`verifyCode` replaced by one
+  `verifyAndAuthorize(email, context)`.
+- New shared `EmailVerifyPanel` component (email input → Verify → inline
+  passkey registration) used by `SuperAdminLogin`, the new
+  `CityAdminLogin` (`/city-admin-login`, linked from the marketplace
+  footer), and `AppHome`'s signed-out state.
+- `/app` is no longer wrapped in `RequireAuth` — it's now the
+  business-owner sign-in page AND the dashboard list, branching on
+  whether a session exists. `RequireAuth` itself now redirects to `/app`
+  instead of a (now-deleted) `/login`.
+- `AccountSecurity.tsx` simplified to pure passkey management (add
+  another device, remove one) — the old `mandatory=1`/`next` redirect gate
+  is gone since first-time registration happens inline on whichever page
+  authorized the session now.
+- `PlatformAdminDashboard`'s "Approve signup" now only flips status
+  (no account/code generated eagerly); "Create city admin" inserts into
+  `city_admin_invites` instead of calling the deleted Edge Function, and
+  the dashboard gained a small panel to list/deactivate/remove invites.
+- Real side effect worth calling out: lost-passkey recovery is now
+  self-service for every role (same email + Verify flow), where before
+  the only path back in was asking a platform admin to hand-generate a
+  new code.
+
+**Verified**: `tsc -b` (0 errors), `vitest run` (12/12), `vite build`
+succeeds. **Not verified**: the actual live WebAuthn ceremony end to end
+(needs a real browser + authenticator, same limitation noted throughout
+this log) — the user needs to click through each of the three login pages
+once against the live deployment to confirm.
+
 ## In Progress
 
-- Waiting on the user to deploy `admin-generate-invite` before the
-  Platform Admin dashboard's "Approve" and "Create city admin" actions
-  can be exercised end to end through the UI.
-- Waiting on the user to run `supabase db push` (17 pending migrations)
-  and deploy the two newest Edge Functions — see "Roadmap Implementation
-  Pass" above for exactly why this session couldn't do it directly.
+- Waiting on the user to `supabase db push` migration `20260917000001`
+  and deploy the `verify-login` Edge Function (`admin-generate-invite`
+  can be deleted from the live project once confirmed nothing else calls
+  it — the app itself no longer does).
+- Waiting on the user to click through all three login pages
+  (`/super-admin`, `/city-admin-login`, `/app`) live to confirm the
+  email-verify-then-register-passkey flow actually works end to end —
+  the eligibility logic and OTP mechanism were reviewed carefully but
+  never exercised against a real deployment from this session.
 
 ## Next
 
-- Live-verify the invite flow through the actual dashboard UI once
-  deployed.
-- Once the pending migrations are live: actually run
-  `supabase test db` (needs Docker) to confirm the new pgTAP files pass,
-  since they've only been reviewed, not executed, anywhere so far.
+- Once confirmed live: consider deleting the unused
+  `admin-generate-invite` Edge Function from the Supabase project itself
+  (its source file is already removed from the repo).
+- Run `supabase test db` (needs Docker) to confirm the pgTAP files pass —
+  still only reviewed, not executed, anywhere.
 - Phase 9 hardening items not yet covered: a real courier/delivery-partner
   API integration (needs a specific provider chosen — a business decision,
   not a code one), and extending the EN/AR/FR i18n pass from the public

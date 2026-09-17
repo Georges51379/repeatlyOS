@@ -51,7 +51,10 @@ function MarketplaceLayoutInner() {
         <Outlet />
       </main>
       <footer className="border-t border-slate-800 mt-12 py-6 text-center text-xs text-slate-600">
-        Powered by RepeatlyOS
+        Powered by RepeatlyOS ·{' '}
+        <Link to="/city-admin-login" className="hover:text-slate-400">
+          City Admin
+        </Link>
       </footer>
     </div>
   );

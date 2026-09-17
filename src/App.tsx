@@ -1,10 +1,9 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { DemoProvider } from './context/DemoContext';
 import { AuthProvider } from './context/AuthContext';
-import Login from './pages/auth/Login';
 import Signup from './pages/auth/Signup';
 import SuperAdminLogin from './pages/auth/SuperAdminLogin';
-import Activate from './pages/auth/Activate';
+import CityAdminLogin from './pages/auth/CityAdminLogin';
 import AccountSecurity from './pages/auth/AccountSecurity';
 import RequireAuth from './components/RequireAuth';
 import Onboarding from './pages/onboarding/Onboarding';
@@ -85,10 +84,13 @@ export default function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/cities" element={<CityDirectory />} />
           <Route path="/discover" element={<Discover />} />
-          <Route path="/login" element={<Login />} />
+          {/* /login retired 2026-09-17 — /app is now itself the
+              business-owner sign-in page when signed out. Redirect kept
+              only in case anything still links to the old path. */}
+          <Route path="/login" element={<Navigate to="/app" replace />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/super-admin" element={<SuperAdminLogin />} />
-          <Route path="/activate" element={<Activate />} />
+          <Route path="/city-admin-login" element={<CityAdminLogin />} />
           <Route
             path="/account/security"
             element={
@@ -105,14 +107,11 @@ export default function App() {
               </RequireAuth>
             }
           />
-          <Route
-            path="/app"
-            element={
-              <RequireAuth>
-                <AppHome />
-              </RequireAuth>
-            }
-          />
+          {/* Deliberately NOT wrapped in RequireAuth — AppHome itself
+              renders a real sign-in form when signed out (see
+              src/pages/app/AppHome.tsx), rather than bouncing to a
+              separate /login page. */}
+          <Route path="/app" element={<AppHome />} />
           <Route
             path="/app/:businessId"
             element={

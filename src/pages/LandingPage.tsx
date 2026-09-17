@@ -59,7 +59,7 @@ export default function LandingPage() {
           <Link to="/cities" className="text-xs text-slate-400 hover:text-white transition-colors">
             Browse cities
           </Link>
-          <Link to="/login" className="text-xs text-slate-400 hover:text-white transition-colors">
+          <Link to="/app" className="text-xs text-slate-400 hover:text-white transition-colors">
             Sign in
           </Link>
         </div>
@@ -208,7 +208,7 @@ export default function LandingPage() {
             <Link to="/signup" className="text-slate-500 hover:text-slate-300 text-xs transition-colors">
               Register a business
             </Link>
-            <Link to="/login" className="text-slate-500 hover:text-slate-300 text-xs transition-colors">
+            <Link to="/app" className="text-slate-500 hover:text-slate-300 text-xs transition-colors">
               Sign in
             </Link>
           </div>
