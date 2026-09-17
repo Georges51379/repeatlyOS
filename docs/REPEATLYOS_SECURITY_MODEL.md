@@ -336,10 +336,21 @@ frame-ancestors 'none'` (plus `X-Content-Type-Options: nosniff` and
 `Referrer-Policy: strict-origin-when-cross-origin`), so the app refuses to
 render inside a frame/iframe on any other site. Configured in
 `vite.config.ts` (`server.headers`/`preview.headers`, covers local dev and
-`vite preview`) and `public/_headers` (Netlify/Cloudflare Pages convention —
-takes effect automatically if deployed to either; a different host needs the
-same headers configured in its own way, e.g. `vercel.json`, nginx
-`add_header`).
+`vite preview`), `public/_headers` (Netlify/Cloudflare Pages convention,
+harmless but inert now — kept in case of a future migration to either), and
+`vercel.json` (`headers` key — added 2026-09-17 once the app was actually
+deployed to Vercel; this is the one that takes effect on the live site).
+
+**`vercel.json` also carries the SPA fallback rewrite** (`{"source":
+"/(.*)", "destination": "/index.html"}`), without which Vercel 404s on any
+direct navigation or page refresh to a client-side route (`/super-admin`,
+`/app`, anything not `/`) — found live on 2026-09-17 when exactly that
+happened on the deployed site. React Router only takes over routing once
+`index.html`'s JS has loaded in the browser; a fresh request straight to
+the server for a path like `/app` has no matching file to serve without
+this rewrite. Clicking an in-app `&lt;Link&gt;` never hit this bug (no new
+server request happens for client-side navigation), which is why it wasn't
+caught until someone typed a URL/refreshed directly.
 
 ## IDs in responses / console
 
