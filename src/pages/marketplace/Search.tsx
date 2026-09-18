@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { Package, Wrench } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { placeholderImage } from '../../lib/placeholderImage';
+import LazyImage from '../../components/LazyImage';
 import type { City } from '../../types/domain';
 
 interface ProductResult {
@@ -9,6 +10,7 @@ interface ProductResult {
   name: string;
   price: number;
   sale_price: number | null;
+  image_url: string | null;
   business: { slug: string; name: string };
 }
 
@@ -98,7 +100,7 @@ export default function Search() {
       let productQuery = supabase
         .from('products')
         .select(
-          `id, name, price, sale_price,
+          `id, name, price, sale_price, image_url,
            business:businesses!inner(slug, name, city_id, marketplace_visible, status)${activeFacets
              .map((_, i) => `, attr_${i}:product_attributes!inner(key, value)`)
              .join('')}`,
@@ -182,8 +184,8 @@ export default function Search() {
                 to={`/${citySlug}/business/${p.business.slug}/product/${p.id}`}
                 className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-lg p-3 flex items-center gap-3"
               >
-                <div className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center shrink-0">
-                  <Package className="w-4 h-4 text-slate-600" />
+                <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0">
+                  <LazyImage src={p.image_url || placeholderImage('product', p.id, { w: 80, h: 80 })} alt="" className="w-full h-full object-cover" />
                 </div>
                 <div className="min-w-0">
                   <p className="text-white text-sm truncate">{p.name}</p>
@@ -207,8 +209,8 @@ export default function Search() {
                 to={`/${citySlug}/business/${s.business.slug}/service/${s.id}`}
                 className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-lg p-3 flex items-center gap-3"
               >
-                <div className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center shrink-0">
-                  <Wrench className="w-4 h-4 text-slate-600" />
+                <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0">
+                  <LazyImage src={placeholderImage('service', s.id, { w: 80, h: 80 })} alt="" className="w-full h-full object-cover" />
                 </div>
                 <div className="min-w-0">
                   <p className="text-white text-sm truncate">{s.name}</p>

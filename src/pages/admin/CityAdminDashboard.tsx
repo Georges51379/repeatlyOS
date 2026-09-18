@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
-import { Check, Ban, Play, Store, CheckCircle2, Clock3, ShieldOff } from 'lucide-react';
+import { Check, Ban, Play, Store, CheckCircle2, Clock3, ShieldOff, Command as CommandIcon, ShieldCheck, ArrowLeft } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAdminRoles } from '../../hooks/useAdminRoles';
 import PageHeader from '../../components/PageHeader';
@@ -9,6 +9,8 @@ import StatusBadge from '../../components/StatusBadge';
 import EmptyState from '../../components/EmptyState';
 import Breadcrumbs from '../../components/Breadcrumbs';
 import Toast from '../../components/Toast';
+import SearchInput from '../../components/SearchInput';
+import CommandK, { useCommandPaletteState, type Command } from '../../components/CommandK';
 import type { Business, City } from '../../types/domain';
 
 export default function CityAdminDashboard() {
@@ -20,8 +22,18 @@ export default function CityAdminDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [savingDescription, setSavingDescription] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [search, setSearch] = useState('');
+  const palette = useCommandPaletteState();
 
   const canManage = !rolesLoading && !!cityId && (isPlatformAdmin || cityAdminOf.includes(cityId));
+
+  const paletteCommands = useMemo<Command[]>(
+    () => [
+      { id: 'my-account', label: 'My account', group: 'Account', icon: ArrowLeft, to: '/app' },
+      ...(isPlatformAdmin ? [{ id: 'platform-admin', label: 'Platform Admin', group: 'Account', icon: ShieldCheck, to: '/platform-admin' }] : []),
+    ],
+    [isPlatformAdmin],
+  );
 
   const load = useCallback(async () => {
     if (!cityId) return;
@@ -79,11 +91,22 @@ export default function CityAdminDashboard() {
   };
 
   const cityLabel = city?.display_name ?? city?.name ?? 'City';
+  const filteredBusinesses = businesses.filter((b) => b.name.toLowerCase().includes(search.trim().toLowerCase()));
 
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-8 md:py-10">
       <div className="max-w-3xl mx-auto">
-        <Breadcrumbs items={[{ label: 'City Admin' }, { label: cityLabel }]} />
+        <div className="flex items-start justify-between gap-3">
+          <Breadcrumbs items={[{ label: 'City Admin' }, { label: cityLabel }]} />
+          <button
+            onClick={palette.openPalette}
+            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 bg-slate-900 hover:bg-slate-800/80 border border-slate-800 rounded-lg px-2.5 py-1.5 transition-colors shrink-0"
+          >
+            <CommandIcon className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Search</span>
+            <kbd className="hidden sm:inline text-[10px] border border-slate-700 rounded px-1 py-0.5 ml-0.5">⌘K</kbd>
+          </button>
+        </div>
 
         <PageHeader title={`${cityLabel} — City Admin`} subtitle="Manage businesses registered in this city." />
 
@@ -95,12 +118,17 @@ export default function CityAdminDashboard() {
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 mb-6">
-          <h2 className="text-white font-medium text-sm mb-3">Businesses in this city</h2>
+          <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+            <h2 className="text-white font-medium text-sm">Businesses in this city</h2>
+            {businesses.length > 0 && <SearchInput value={search} onChange={setSearch} placeholder="Search by name…" className="max-w-xs" />}
+          </div>
           {businesses.length === 0 ? (
             <EmptyState type="generic" />
+          ) : filteredBusinesses.length === 0 ? (
+            <EmptyState type="generic" search={search} onClear={() => setSearch('')} />
           ) : (
             <div className="space-y-2">
-              {businesses.map((b) => (
+              {filteredBusinesses.map((b) => (
                 <div key={b.id} className="flex flex-wrap items-center justify-between gap-2 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5">
                   <div className="min-w-0">
                     <p className="text-white text-sm truncate">{b.name}</p>
@@ -163,6 +191,7 @@ export default function CityAdminDashboard() {
       </div>
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      <CommandK commands={paletteCommands} open={palette.open} onClose={palette.onClose} />
     </div>
   );
 }

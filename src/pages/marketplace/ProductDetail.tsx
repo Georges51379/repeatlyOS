@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Package, ShoppingCart } from 'lucide-react';
+import { ShoppingCart } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useMarketplaceCart } from '../../context/MarketplaceCartContext';
+import { placeholderImage } from '../../lib/placeholderImage';
 import type { Business, Product } from '../../types/domain';
 
 const STOCK_LABEL: Record<string, { text: string; className: string }> = {
@@ -76,12 +77,12 @@ export default function ProductDetail() {
 
   return (
     <div className="max-w-lg mx-auto">
-      <div className="w-full aspect-square bg-slate-900 border border-slate-800 rounded-xl mb-4 flex items-center justify-center overflow-hidden">
-        {product.image_url ? (
-          <img src={product.image_url} alt="" className="w-full h-full object-cover" />
-        ) : (
-          <Package className="w-10 h-10 text-slate-700" />
-        )}
+      <div className="w-full aspect-square bg-slate-900 border border-slate-800 rounded-xl mb-4 overflow-hidden">
+        <img
+          src={product.image_url || placeholderImage('product', product.id, { w: 600, h: 600 })}
+          alt=""
+          className="w-full h-full object-cover"
+        />
       </div>
 
       <p className="text-xs text-slate-500 mb-1">{business.name}</p>

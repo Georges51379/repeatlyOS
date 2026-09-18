@@ -22,4 +22,20 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
       // SW registration failed — app still works online
     });
   });
+
+  // A tab left open across a deploy keeps running the JS it already loaded
+  // into memory — network-first fetching (see sw.js) fixes *new* requests,
+  // but does nothing for code already executing. `controllerchange` fires
+  // exactly when a newly-activated SW takes over this tab (i.e. a deploy
+  // happened while it was open); reload once so it actually picks up the
+  // new bundle instead of silently running stale routes/components
+  // forever. Found live (2026-09-18): a super-admin login landing on the
+  // old dashboard with no sidebar, from a tab open since before that
+  // sidebar shipped.
+  let reloadedForNewWorker = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloadedForNewWorker) return;
+    reloadedForNewWorker = true;
+    window.location.reload();
+  });
 }

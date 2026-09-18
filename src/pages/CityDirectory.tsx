@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { MapPin, Store, Zap, ArrowLeft } from 'lucide-react';
+import { MapPin, Zap, ArrowLeft, ArrowUpRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { placeholderImage } from '../lib/placeholderImage';
+import LazyImage from '../components/LazyImage';
 import type { City } from '../types/domain';
 
 export default function CityDirectory() {
@@ -37,25 +39,33 @@ export default function CityDirectory() {
             <p className="text-slate-500 text-sm">Check back soon — we're expanding city by city.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             {cities.map((c) => (
               <Link
                 key={c.id}
                 to={`/${c.slug}`}
-                className="bg-slate-900 border border-slate-800 hover:border-blue-500/40 rounded-2xl p-6 transition-colors group"
+                className="bg-slate-900 border border-slate-800 hover:border-blue-500/40 rounded-2xl overflow-hidden transition-colors card-hover group"
               >
-                <div className="w-11 h-11 bg-blue-600/10 border border-blue-500/20 rounded-xl flex items-center justify-center mb-4 group-hover:bg-blue-600/20 transition-colors">
-                  <Store className="w-5 h-5 text-blue-400" />
+                <div className="w-full aspect-[16/9] overflow-hidden relative">
+                  <LazyImage
+                    src={c.cover_image_url || placeholderImage('city', c.id, { w: 640, h: 360 })}
+                    alt=""
+                    className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/0 to-transparent" />
                 </div>
-                <p className="text-white font-bold text-lg mb-1">{c.display_name ?? c.name}</p>
-                <p className="text-slate-500 text-xs mb-3">
-                  {c.region ? `${c.region}, ` : ''}
-                  {c.country}
-                </p>
-                {c.description && <p className="text-slate-400 text-sm line-clamp-2">{c.description}</p>}
-                <span className="inline-block mt-4 text-blue-400 text-sm font-medium group-hover:text-blue-300">
-                  See shops →
-                </span>
+                <div className="p-5">
+                  <p className="text-white font-bold text-lg mb-1">{c.display_name ?? c.name}</p>
+                  <p className="text-slate-500 text-xs mb-3 flex items-center gap-1">
+                    <MapPin className="w-3 h-3" />
+                    {c.region ? `${c.region}, ` : ''}
+                    {c.country}
+                  </p>
+                  {c.description && <p className="text-slate-400 text-sm line-clamp-2 mb-3">{c.description}</p>}
+                  <span className="inline-flex items-center gap-1 text-blue-400 text-sm font-medium group-hover:text-blue-300">
+                    See shops <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                  </span>
+                </div>
               </Link>
             ))}
           </div>

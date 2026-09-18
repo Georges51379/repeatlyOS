@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Store, Phone, MessageCircle, MapPin, Package, Wrench, Plus, Truck } from 'lucide-react';
+import { Phone, MessageCircle, MapPin, Plus, Truck } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useMarketplaceCart } from '../../context/MarketplaceCartContext';
 import { useI18n } from '../../lib/i18n';
@@ -8,6 +8,7 @@ import PriceTag from '../../components/PriceTag';
 import VerifiedBadge from '../../components/VerifiedBadge';
 import AvailabilityBanner from '../../components/AvailabilityBanner';
 import LazyImage from '../../components/LazyImage';
+import { placeholderImage, businessTypeToImageKind } from '../../lib/placeholderImage';
 import ReviewsList from '../../components/ReviewsList';
 import ReviewForm from '../../components/ReviewForm';
 import type { Business, Product, Service } from '../../types/domain';
@@ -84,12 +85,12 @@ export default function BusinessStorefront() {
 
   return (
     <div>
-      <div className="w-full aspect-[3/1] bg-slate-900 rounded-xl mb-4 flex items-center justify-center overflow-hidden border border-slate-800">
-        {business.cover_image_url ? (
-          <LazyImage src={business.cover_image_url} alt="" className="w-full h-full object-cover" />
-        ) : (
-          <Store className="w-8 h-8 text-slate-700" />
-        )}
+      <div className="w-full aspect-[3/1] bg-slate-900 rounded-xl mb-4 overflow-hidden border border-slate-800">
+        <LazyImage
+          src={business.cover_image_url || placeholderImage(businessTypeToImageKind(business.business_type_key), business.id, { w: 1200, h: 400 })}
+          alt=""
+          className="w-full h-full object-cover"
+        />
       </div>
 
       <AvailabilityBanner status={business.availability_override} note={business.availability_note} />
@@ -139,8 +140,8 @@ export default function BusinessStorefront() {
                 to={`/${citySlug}/business/${businessSlug}/service/${s.id}`}
                 className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-lg p-3 flex items-center gap-3"
               >
-                <div className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center shrink-0">
-                  <Wrench className="w-4 h-4 text-slate-600" />
+                <div className="w-10 h-10 bg-slate-800 rounded-lg overflow-hidden shrink-0">
+                  <LazyImage src={placeholderImage('service', s.id, { w: 80, h: 80 })} alt="" className="w-full h-full object-cover" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-white text-sm">{s.name}</p>
@@ -161,12 +162,8 @@ export default function BusinessStorefront() {
             {products.map((p) => (
               <div key={p.id} className="bg-slate-900 border border-slate-800 rounded-lg p-3">
                 <Link to={`/${citySlug}/business/${businessSlug}/product/${p.id}`}>
-                  <div className="w-full aspect-square bg-slate-800 rounded-lg mb-2 flex items-center justify-center overflow-hidden">
-                    {p.image_url ? (
-                      <LazyImage src={p.image_url} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <Package className="w-5 h-5 text-slate-600" />
-                    )}
+                  <div className="w-full aspect-square bg-slate-800 rounded-lg mb-2 overflow-hidden">
+                    <LazyImage src={p.image_url || placeholderImage('product', p.id, { w: 300, h: 300 })} alt="" className="w-full h-full object-cover" />
                   </div>
                   <p className="text-white text-xs truncate">{p.name}</p>
                 </Link>

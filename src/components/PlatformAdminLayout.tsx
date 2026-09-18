@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, NavLink, Navigate, Outlet, useLocation } from 'react-router-dom';
 import {
   ShieldCheck,
@@ -11,9 +11,11 @@ import {
   ArrowLeft,
   Menu,
   X,
+  Command as CommandIcon,
 } from 'lucide-react';
 import { useAdminRoles } from '../hooks/useAdminRoles';
 import Breadcrumbs from './Breadcrumbs';
+import CommandK, { useCommandPaletteState, type Command } from './CommandK';
 
 const NAV_ITEMS = [
   { key: 'overview', label: 'Overview', icon: LayoutDashboard, path: '' },
@@ -34,6 +36,21 @@ export default function PlatformAdminLayout() {
   const { isPlatformAdmin, loading: rolesLoading } = useAdminRoles();
   const location = useLocation();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const palette = useCommandPaletteState();
+
+  const paletteCommands = useMemo<Command[]>(
+    () => [
+      ...NAV_ITEMS.map((item) => ({
+        id: item.key,
+        label: item.label,
+        group: 'Go to',
+        icon: item.icon,
+        to: `/platform-admin/${item.path}`,
+      })),
+      { id: 'my-account', label: 'My account', group: 'Account', icon: ArrowLeft, to: '/app' },
+    ],
+    [],
+  );
 
   if (rolesLoading) return null;
   if (!isPlatformAdmin) return <Navigate to="/app" replace />;
@@ -51,7 +68,9 @@ export default function PlatformAdminLayout() {
           onClick={() => setMobileNavOpen(false)}
           className={({ isActive }) =>
             `flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
-              isActive ? 'bg-blue-600/15 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+              isActive
+                ? 'bg-blue-600/15 text-blue-300 font-medium shadow-[inset_2px_0_0_0_theme(colors.blue.500)]'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
             }`
           }
         >
@@ -105,11 +124,21 @@ export default function PlatformAdminLayout() {
             <Menu className="w-5 h-5" />
           </button>
           <Breadcrumbs items={[{ label: 'Platform Admin', to: '/platform-admin' }, { label: currentItem.label }]} />
+          <button
+            onClick={palette.openPalette}
+            className="ml-auto flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 bg-slate-900 hover:bg-slate-800/80 border border-slate-800 rounded-lg px-2.5 py-1.5 transition-colors"
+          >
+            <CommandIcon className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Search</span>
+            <kbd className="hidden sm:inline text-[10px] border border-slate-700 rounded px-1 py-0.5 ml-0.5">⌘K</kbd>
+          </button>
         </div>
         <main className="flex-1 p-4 md:p-6 overflow-y-auto">
           <Outlet />
         </main>
       </div>
+
+      <CommandK commands={paletteCommands} open={palette.open} onClose={palette.onClose} />
     </div>
   );
 }

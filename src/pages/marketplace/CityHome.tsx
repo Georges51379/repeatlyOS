@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { useI18n } from '../../lib/i18n';
 import VerifiedBadge from '../../components/VerifiedBadge';
 import LazyImage from '../../components/LazyImage';
+import { placeholderImage, businessTypeToImageKind } from '../../lib/placeholderImage';
 import type { Business, City } from '../../types/domain';
 
 export default function CityHome() {
@@ -109,12 +110,12 @@ export default function CityHome() {
               to={`/${citySlug}/business/${b.slug}`}
               className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-xl p-4 transition-colors"
             >
-              <div className="w-full aspect-video bg-slate-800 rounded-lg mb-3 flex items-center justify-center overflow-hidden">
-                {b.cover_image_url ? (
-                  <LazyImage src={b.cover_image_url} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <Store className="w-6 h-6 text-slate-600" />
-                )}
+              <div className="w-full aspect-video bg-slate-800 rounded-lg mb-3 overflow-hidden">
+                <LazyImage
+                  src={b.cover_image_url || placeholderImage(businessTypeToImageKind(b.business_type_key), b.id)}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
               </div>
               <div className="flex items-center gap-1.5 flex-wrap">
                 <p className="text-white font-medium text-sm">{b.name}</p>

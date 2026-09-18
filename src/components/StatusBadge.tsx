@@ -74,7 +74,7 @@ function toLabel(status: string): string {
 
 interface Props { status: string; dot?: boolean; label?: string; }
 
-export default function StatusBadge({ status, dot = false, label }: Props) {
+export default function StatusBadge({ status, dot = true, label }: Props) {
   const key = normalize(status);
   return (
     <span className={clsx('pill', variants[key] ?? 'bg-slate-500/12 text-slate-400 border border-slate-500/20')}>
