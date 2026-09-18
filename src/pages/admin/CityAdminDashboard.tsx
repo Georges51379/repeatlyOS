@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
-import { Building2, Check, Ban, Play } from 'lucide-react';
+import { Check, Ban, Play, Store, CheckCircle2, Clock3, ShieldOff } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAdminRoles } from '../../hooks/useAdminRoles';
+import PageHeader from '../../components/PageHeader';
+import StatCard from '../../components/StatCard';
+import StatusBadge from '../../components/StatusBadge';
+import EmptyState from '../../components/EmptyState';
+import Breadcrumbs from '../../components/Breadcrumbs';
+import Toast from '../../components/Toast';
 import type { Business, City } from '../../types/domain';
 
 export default function CityAdminDashboard() {
@@ -12,6 +18,8 @@ export default function CityAdminDashboard() {
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [description, setDescription] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [savingDescription, setSavingDescription] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const canManage = !rolesLoading && !!cityId && (isPlatformAdmin || cityAdminOf.includes(cityId));
 
@@ -43,53 +51,62 @@ export default function CityAdminDashboard() {
     suspended: businesses.filter((b) => b.status === 'suspended').length,
   };
 
+  // Activating must ALSO turn on marketplace_visible, mirroring the same
+  // fix on the platform-admin approvals flow — otherwise a business a city
+  // admin approves/reinstates here can silently stay invisible in the
+  // public marketplace despite being "active".
   const setStatus = async (id: string, status: 'active' | 'suspended' | 'rejected') => {
-    await supabase.from('businesses').update({ status }).eq('id', id);
+    const payload = status === 'active' ? { status, marketplace_visible: true } : { status };
+    await supabase.from('businesses').update(payload).eq('id', id);
+    setToast({
+      message: status === 'active' ? 'Business is now active and visible in this city.' : status === 'suspended' ? 'Business suspended.' : 'Business rejected.',
+      type: 'success',
+    });
     await load();
   };
 
   const saveDescription = async () => {
     if (!cityId) return;
     setError(null);
+    setSavingDescription(true);
     const { error: updateError } = await supabase.from('cities').update({ description }).eq('id', cityId);
-    if (updateError) setError(updateError.message);
+    setSavingDescription(false);
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+    setToast({ message: 'City description saved.', type: 'success' });
   };
 
+  const cityLabel = city?.display_name ?? city?.name ?? 'City';
+
   return (
-    <div className="min-h-screen bg-slate-950 px-4 py-10">
+    <div className="min-h-screen bg-slate-950 px-4 py-8 md:py-10">
       <div className="max-w-3xl mx-auto">
-        <div className="flex items-center gap-2 mb-8">
-          <Building2 className="w-6 h-6 text-blue-400" />
-          <span className="text-white font-bold text-lg">{city?.display_name ?? city?.name ?? 'City'} — City Admin</span>
-        </div>
+        <Breadcrumbs items={[{ label: 'City Admin' }, { label: cityLabel }]} />
+
+        <PageHeader title={`${cityLabel} — City Admin`} subtitle="Manage businesses registered in this city." />
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-          {[
-            ['Total', counts.total],
-            ['Active', counts.active],
-            ['Pending', counts.pending],
-            ['Suspended', counts.suspended],
-          ].map(([label, value]) => (
-            <div key={label as string} className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-              <p className="text-slate-500 text-xs mb-1">{label}</p>
-              <p className="text-white text-2xl font-semibold">{value}</p>
-            </div>
-          ))}
+          <StatCard title="Total" value={counts.total} icon={Store} />
+          <StatCard title="Active" value={counts.active} icon={CheckCircle2} accent="emerald" />
+          <StatCard title="Pending" value={counts.pending} icon={Clock3} accent="amber" />
+          <StatCard title="Suspended" value={counts.suspended} icon={ShieldOff} accent="orange" />
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 mb-6">
           <h2 className="text-white font-medium text-sm mb-3">Businesses in this city</h2>
           {businesses.length === 0 ? (
-            <p className="text-slate-500 text-sm">No businesses yet.</p>
+            <EmptyState type="generic" />
           ) : (
             <div className="space-y-2">
               {businesses.map((b) => (
-                <div key={b.id} className="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5">
-                  <div>
-                    <p className="text-white text-sm">{b.name}</p>
-                    <p className="text-xs text-slate-500">{b.status}</p>
+                <div key={b.id} className="flex flex-wrap items-center justify-between gap-2 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5">
+                  <div className="min-w-0">
+                    <p className="text-white text-sm truncate">{b.name}</p>
+                    <StatusBadge status={b.status} />
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 shrink-0">
                     {b.status !== 'active' && (
                       <button
                         onClick={() => setStatus(b.id, 'active')}
@@ -125,19 +142,27 @@ export default function CityAdminDashboard() {
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-          <h2 className="text-white font-medium text-sm mb-3">City description</h2>
+          <h2 className="text-white font-medium text-sm mb-1">City description</h2>
+          <p className="text-xs text-slate-500 mb-3">Shown to shoppers browsing this city in the public marketplace.</p>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={4}
+            placeholder="A short description of what makes this city's marketplace worth browsing…"
             className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 mb-3"
           />
-          <button onClick={saveDescription} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-white text-sm font-semibold">
-            Save
+          <button
+            onClick={saveDescription}
+            disabled={savingDescription}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-lg text-white text-sm font-semibold"
+          >
+            {savingDescription ? 'Saving…' : 'Save'}
           </button>
           {error && <p className="text-xs text-red-400 mt-2">{error}</p>}
         </div>
       </div>
+
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }

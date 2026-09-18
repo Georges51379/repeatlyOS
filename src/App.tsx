@@ -21,7 +21,13 @@ import BusinessAnalytics from './pages/business/Analytics';
 import BusinessPayments from './pages/business/Payments';
 import BusinessMemberships from './pages/business/Memberships';
 import BusinessSettings from './pages/business/BusinessSettings';
-import PlatformAdminDashboard from './pages/admin/PlatformAdminDashboard';
+import PlatformAdminLayout from './components/PlatformAdminLayout';
+import PlatformOverview from './pages/admin/platform/Overview';
+import PlatformApprovals from './pages/admin/platform/Approvals';
+import PlatformBusinesses from './pages/admin/platform/Businesses';
+import PlatformCities from './pages/admin/platform/Cities';
+import PlatformCityAdmins from './pages/admin/platform/CityAdmins';
+import PlatformSettings from './pages/admin/platform/Settings';
 import CityAdminDashboard from './pages/admin/CityAdminDashboard';
 import { MarketplaceCartProvider } from './context/MarketplaceCartContext';
 import MarketplaceLayout from './components/MarketplaceLayout';
@@ -138,10 +144,17 @@ export default function App() {
             path="/platform-admin"
             element={
               <RequireAuth>
-                <PlatformAdminDashboard />
+                <PlatformAdminLayout />
               </RequireAuth>
             }
-          />
+          >
+            <Route index element={<PlatformOverview />} />
+            <Route path="approvals" element={<PlatformApprovals />} />
+            <Route path="businesses" element={<PlatformBusinesses />} />
+            <Route path="cities" element={<PlatformCities />} />
+            <Route path="city-admins" element={<PlatformCityAdmins />} />
+            <Route path="settings" element={<PlatformSettings />} />
+          </Route>
           <Route
             path="/city-admin/:cityId"
             element={

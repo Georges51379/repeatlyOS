@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BadgeCheck, Zap } from 'lucide-react';
+import { BadgeCheck, Zap, Eye, EyeOff } from 'lucide-react';
 import { useCurrentBusiness } from '../../hooks/useCurrentBusiness';
 import { supabase } from '../../lib/supabase';
 import ModulesPanel from '../../components/ModulesPanel';
@@ -20,11 +20,14 @@ export default function BusinessSettings() {
   const [inPool, setInPool] = useState(false);
   const [poolLoaded, setPoolLoaded] = useState(false);
   const [savingAvailability, setSavingAvailability] = useState(false);
+  const [visible, setVisible] = useState(false);
+  const [togglingVisible, setTogglingVisible] = useState(false);
 
   useEffect(() => {
     if (!business) return;
     setAvailability(business.availability_override);
     setAvailabilityNote(business.availability_note ?? '');
+    setVisible(business.marketplace_visible);
     supabase
       .from('delivery_pool_members')
       .select('id, active')
@@ -45,6 +48,14 @@ export default function BusinessSettings() {
       .update({ availability_override: availability, availability_note: availabilityNote.trim() || null })
       .eq('id', business.id);
     setSavingAvailability(false);
+  };
+
+  const toggleVisible = async () => {
+    if (business.status !== 'active') return;
+    setTogglingVisible(true);
+    await supabase.from('businesses').update({ marketplace_visible: !visible }).eq('id', business.id);
+    setTogglingVisible(false);
+    setVisible(!visible);
   };
 
   const togglePool = async () => {
@@ -69,6 +80,37 @@ export default function BusinessSettings() {
         )}
       </div>
       <p className="text-slate-500 text-sm mb-6">{business.name}</p>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 mb-6">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-2">
+            {visible ? (
+              <Eye className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
+            ) : (
+              <EyeOff className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+            )}
+            <div>
+              <h2 className="text-white font-medium text-sm">Marketplace visibility</h2>
+              <p className="text-slate-500 text-xs max-w-sm">
+                {business.status !== 'active'
+                  ? 'Visible to shoppers automatically once a platform admin approves this business.'
+                  : visible
+                    ? 'Shoppers can find you on your city page and in search right now.'
+                    : "Hidden from your city's marketplace — your dashboard still works normally."}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={toggleVisible}
+            disabled={business.status !== 'active' || togglingVisible}
+            className={`shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+              visible ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-emerald-600 text-white hover:bg-emerald-500'
+            }`}
+          >
+            {togglingVisible ? 'Saving…' : visible ? 'Hide from marketplace' : 'Show in marketplace'}
+          </button>
+        </div>
+      </div>
 
       <PlanPanel businessId={business.id} />
 

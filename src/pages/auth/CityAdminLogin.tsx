@@ -6,7 +6,7 @@ import { useAdminRoles } from '../../hooks/useAdminRoles';
 import EmailVerifyPanel from '../../components/EmailVerifyPanel';
 
 // City admins don't self-register: a platform admin adds their email
-// against a specific city (PlatformAdminDashboard's "City admins" panel,
+// against a specific city (the /platform-admin "City Admins" page,
 // backed by migration 20260917000001's city_admin_invites), and from then
 // on they sign in here — no cityId in the URL, since eligibility (and
 // which city) is resolved server-side by email, not guessed from a link.
