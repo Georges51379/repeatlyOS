@@ -12,6 +12,7 @@ import Modal from '../../components/Modal';
 import Toast from '../../components/Toast';
 import EmptyState from '../../components/EmptyState';
 import { SkeletonTable } from '../../components/Skeletons';
+import FormField, { fieldInputClass } from '../../components/FormField';
 import type { Customer } from '../../types/domain';
 
 interface CustomerFormState {
@@ -245,39 +246,49 @@ export default function Customers() {
 
       {form && (
         <Modal title={form.id ? 'Edit customer' : 'Add customer'} onClose={() => { setForm(null); setError(null); }} size="sm" icon={<Users className="w-4 h-4 text-blue-400" />}>
-          <div className="space-y-3">
-            <input
-              value={form.full_name}
-              onChange={(e) => setForm({ ...form, full_name: e.target.value })}
-              placeholder="Full name *"
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-            />
-            <input
-              value={form.phone}
-              onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              placeholder="Phone"
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-            />
-            <input
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              placeholder="Email"
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-            />
-            <input
-              value={form.address}
-              onChange={(e) => setForm({ ...form, address: e.target.value })}
-              placeholder={loadingAddress ? 'Loading saved address…' : 'Address'}
-              disabled={loadingAddress}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 disabled:opacity-50"
-            />
-            <textarea
-              value={form.notes}
-              onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              placeholder="Notes"
-              rows={2}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-            />
+          <div className="space-y-4">
+            <FormField label="Full name" required>
+              <input
+                value={form.full_name}
+                onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+                placeholder="e.g. Rana Khoury"
+                className={fieldInputClass}
+              />
+            </FormField>
+            <FormField label="Phone" helper="Used for order/booking updates.">
+              <input
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                placeholder="+961 70 123 456"
+                className={fieldInputClass}
+              />
+            </FormField>
+            <FormField label="Email" helper="Optional.">
+              <input
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                placeholder="name@example.com"
+                className={fieldInputClass}
+              />
+            </FormField>
+            <FormField label="Address" helper="Optional — for delivery or records.">
+              <input
+                value={form.address}
+                onChange={(e) => setForm({ ...form, address: e.target.value })}
+                placeholder={loadingAddress ? 'Loading saved address…' : 'Street, building, city'}
+                disabled={loadingAddress}
+                className={`${fieldInputClass} disabled:opacity-50`}
+              />
+            </FormField>
+            <FormField label="Notes" helper="Only visible to your team.">
+              <textarea
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                placeholder="Anything worth remembering about this customer"
+                rows={2}
+                className={fieldInputClass}
+              />
+            </FormField>
           </div>
 
           {error && <p className="text-xs text-red-400 mt-3">{error}</p>}

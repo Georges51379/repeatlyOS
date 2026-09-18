@@ -12,6 +12,7 @@ import Modal from '../../components/Modal';
 import Toast from '../../components/Toast';
 import EmptyState from '../../components/EmptyState';
 import { SkeletonTable } from '../../components/Skeletons';
+import FormField, { fieldInputClass } from '../../components/FormField';
 import type { Booking, BookingStatus, Customer, Service, StaffMember } from '../../types/domain';
 
 interface FormState {
@@ -250,73 +251,87 @@ export default function Bookings() {
 
       {showAdd && (
         <Modal title="New booking" onClose={() => { setShowAdd(false); setError(null); }} icon={<CalendarClock className="w-4 h-4 text-blue-400" />}>
-          <div className="space-y-3">
-            <select
-              value={form.service_id}
-              onChange={(e) => setForm({ ...form, service_id: e.target.value })}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+          <div className="space-y-4">
+            <FormField label="Service" required>
+              <select
+                value={form.service_id}
+                onChange={(e) => setForm({ ...form, service_id: e.target.value })}
+                className={fieldInputClass}
+              >
+                <option value="">Select a service…</option>
+                {services.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            <FormField label="Customer" helper="Optional.">
+              <select
+                value={form.customer_id}
+                onChange={(e) => setForm({ ...form, customer_id: e.target.value })}
+                className={fieldInputClass}
+              >
+                <option value="">No customer linked</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.full_name}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            <FormField
+              label="Staff"
+              helper={staffMembers.length === 0 ? 'Add staff members on the Staff page to assign bookings to them.' : 'Optional.'}
             >
-              <option value="">Select service *</option>
-              {services.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-            <select
-              value={form.customer_id}
-              onChange={(e) => setForm({ ...form, customer_id: e.target.value })}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-            >
-              <option value="">No customer linked</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.full_name}
-                </option>
-              ))}
-            </select>
-            <select
-              value={form.staff_id}
-              onChange={(e) => setForm({ ...form, staff_id: e.target.value })}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-            >
-              <option value="">No staff assigned</option>
-              {staffMembers.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.full_name}{s.role_title ? ` (${s.role_title})` : ''}
-                </option>
-              ))}
-            </select>
-            {staffMembers.length === 0 && (
-              <p className="text-xs text-slate-600 -mt-1.5">Add staff members on the Staff page to assign bookings to them.</p>
-            )}
-            <input
-              type="date"
-              value={form.scheduled_date}
-              onChange={(e) => setForm({ ...form, scheduled_date: e.target.value })}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-            />
+              <select
+                value={form.staff_id}
+                onChange={(e) => setForm({ ...form, staff_id: e.target.value })}
+                className={fieldInputClass}
+              >
+                <option value="">No staff assigned</option>
+                {staffMembers.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.full_name}{s.role_title ? ` (${s.role_title})` : ''}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            <FormField label="Date" required>
+              <input
+                type="date"
+                value={form.scheduled_date}
+                onChange={(e) => setForm({ ...form, scheduled_date: e.target.value })}
+                className={fieldInputClass}
+              />
+            </FormField>
             <div className="grid grid-cols-2 gap-3">
-              <input
-                type="time"
-                value={form.start_time}
-                onChange={(e) => setForm({ ...form, start_time: e.target.value })}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-              />
-              <input
-                type="time"
-                value={form.end_time}
-                onChange={(e) => setForm({ ...form, end_time: e.target.value })}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-              />
+              <FormField label="Start time" required>
+                <input
+                  type="time"
+                  value={form.start_time}
+                  onChange={(e) => setForm({ ...form, start_time: e.target.value })}
+                  className={fieldInputClass}
+                />
+              </FormField>
+              <FormField label="End time" required>
+                <input
+                  type="time"
+                  value={form.end_time}
+                  onChange={(e) => setForm({ ...form, end_time: e.target.value })}
+                  className={fieldInputClass}
+                />
+              </FormField>
             </div>
-            <textarea
-              value={form.notes}
-              onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              placeholder="Notes"
-              rows={2}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-            />
+            <FormField label="Notes" helper="Optional.">
+              <textarea
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                placeholder="Anything staff should know"
+                rows={2}
+                className={fieldInputClass}
+              />
+            </FormField>
           </div>
 
           {error && <p className="text-xs text-red-400 mt-3">{error}</p>}

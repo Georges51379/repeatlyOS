@@ -12,6 +12,7 @@ import Modal from '../../components/Modal';
 import Toast from '../../components/Toast';
 import EmptyState from '../../components/EmptyState';
 import { SkeletonTable } from '../../components/Skeletons';
+import FormField, { fieldInputClass } from '../../components/FormField';
 import type { Customer, Payment, PaymentMethod } from '../../types/domain';
 
 const METHODS: PaymentMethod[] = ['cash', 'whish', 'omt', 'bank_transfer', 'pay_at_store'];
@@ -187,50 +188,61 @@ export default function Payments() {
 
       {showAdd && (
         <Modal title="Record payment" onClose={() => { setShowAdd(false); setError(null); }} size="sm" icon={<Receipt className="w-4 h-4 text-blue-400" />}>
-          <div className="space-y-3">
-            <select
-              value={form.customer_id}
-              onChange={(e) => setForm({ ...form, customer_id: e.target.value })}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-            >
-              <option value="">No customer linked</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.full_name}
-                </option>
-              ))}
-            </select>
-            <input
-              type="number"
-              value={form.amount}
-              onChange={(e) => setForm({ ...form, amount: e.target.value })}
-              placeholder="Amount *"
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-            />
-            <select
-              value={form.method}
-              onChange={(e) => setForm({ ...form, method: e.target.value as PaymentMethod })}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-            >
-              {METHODS.map((m) => (
-                <option key={m} value={m}>
-                  {METHOD_LABEL[m]}
-                </option>
-              ))}
-            </select>
-            <input
-              value={form.reference}
-              onChange={(e) => setForm({ ...form, reference: e.target.value })}
-              placeholder="Reference (optional)"
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-            />
-            <textarea
-              value={form.notes}
-              onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              placeholder="Notes"
-              rows={2}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-            />
+          <div className="space-y-4">
+            <FormField label="Customer" helper="Optional — link it to someone in your customer list.">
+              <select
+                value={form.customer_id}
+                onChange={(e) => setForm({ ...form, customer_id: e.target.value })}
+                className={fieldInputClass}
+              >
+                <option value="">No customer linked</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.full_name}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            <FormField label="Amount (USD)" required>
+              <input
+                type="number"
+                inputMode="decimal"
+                value={form.amount}
+                onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                placeholder="0.00"
+                className={fieldInputClass}
+              />
+            </FormField>
+            <FormField label="Payment method" required>
+              <select
+                value={form.method}
+                onChange={(e) => setForm({ ...form, method: e.target.value as PaymentMethod })}
+                className={fieldInputClass}
+              >
+                {METHODS.map((m) => (
+                  <option key={m} value={m}>
+                    {METHOD_LABEL[m]}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            <FormField label="Reference" helper="Optional — a receipt number or transaction ID.">
+              <input
+                value={form.reference}
+                onChange={(e) => setForm({ ...form, reference: e.target.value })}
+                placeholder="e.g. #4021"
+                className={fieldInputClass}
+              />
+            </FormField>
+            <FormField label="Notes" helper="Only visible to your team.">
+              <textarea
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                placeholder="Optional"
+                rows={2}
+                className={fieldInputClass}
+              />
+            </FormField>
           </div>
 
           {error && <p className="text-xs text-red-400 mt-3">{error}</p>}

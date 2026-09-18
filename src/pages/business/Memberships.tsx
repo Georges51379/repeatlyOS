@@ -12,6 +12,7 @@ import Modal from '../../components/Modal';
 import Toast from '../../components/Toast';
 import EmptyState from '../../components/EmptyState';
 import { SkeletonTable } from '../../components/Skeletons';
+import FormField, { fieldInputClass } from '../../components/FormField';
 import type { Customer, CustomerMembership, MembershipPlanType } from '../../types/domain';
 
 interface FormState {
@@ -216,48 +217,60 @@ export default function Memberships() {
 
       {showAdd && (
         <Modal title="Sell a plan" onClose={() => { setShowAdd(false); setError(null); }} size="sm" icon={<Package className="w-4 h-4 text-blue-400" />}>
-          <div className="space-y-3">
-            <select
-              value={form.customer_id}
-              onChange={(e) => setForm({ ...form, customer_id: e.target.value })}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-            >
-              <option value="">Select customer *</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.full_name}
-                </option>
-              ))}
-            </select>
-            <select
-              value={form.plan_type}
-              onChange={(e) => setForm({ ...form, plan_type: e.target.value as MembershipPlanType })}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-            >
-              <option value="package">Package (fixed sessions)</option>
-              <option value="subscription">Subscription (recurring)</option>
-            </select>
-            <input
-              value={form.plan_name}
-              onChange={(e) => setForm({ ...form, plan_name: e.target.value })}
-              placeholder="Plan name * (e.g. 8 Washes / Month)"
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-            />
-            <input
-              type="number"
-              value={form.price}
-              onChange={(e) => setForm({ ...form, price: e.target.value })}
-              placeholder="Price"
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-            />
-            {form.plan_type === 'package' && (
+          <div className="space-y-4">
+            <FormField label="Customer" required>
+              <select
+                value={form.customer_id}
+                onChange={(e) => setForm({ ...form, customer_id: e.target.value })}
+                className={fieldInputClass}
+              >
+                <option value="">Select a customer…</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.full_name}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            <FormField label="Plan type" required>
+              <select
+                value={form.plan_type}
+                onChange={(e) => setForm({ ...form, plan_type: e.target.value as MembershipPlanType })}
+                className={fieldInputClass}
+              >
+                <option value="package">Package (fixed sessions)</option>
+                <option value="subscription">Subscription (recurring)</option>
+              </select>
+            </FormField>
+            <FormField label="Plan name" required>
+              <input
+                value={form.plan_name}
+                onChange={(e) => setForm({ ...form, plan_name: e.target.value })}
+                placeholder="e.g. 8 Washes / Month"
+                className={fieldInputClass}
+              />
+            </FormField>
+            <FormField label="Price (USD)" helper="Optional.">
               <input
                 type="number"
-                value={form.sessions_total}
-                onChange={(e) => setForm({ ...form, sessions_total: e.target.value })}
-                placeholder="Total sessions"
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                inputMode="decimal"
+                value={form.price}
+                onChange={(e) => setForm({ ...form, price: e.target.value })}
+                placeholder="0.00"
+                className={fieldInputClass}
               />
+            </FormField>
+            {form.plan_type === 'package' && (
+              <FormField label="Total sessions" helper="How many uses this package includes.">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={form.sessions_total}
+                  onChange={(e) => setForm({ ...form, sessions_total: e.target.value })}
+                  placeholder="e.g. 8"
+                  className={fieldInputClass}
+                />
+              </FormField>
             )}
           </div>
 

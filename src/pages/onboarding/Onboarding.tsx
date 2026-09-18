@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Zap, Check } from 'lucide-react';
+import { Zap, Check, Search } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
+import FormField, { fieldInputClass } from '../../components/FormField';
 import type { City, BusinessType } from '../../types/domain';
 
 function slugify(input: string): string {
@@ -26,6 +27,7 @@ export default function Onboarding() {
 
   const [cityId, setCityId] = useState<string | null>(null);
   const [businessTypeKey, setBusinessTypeKey] = useState<string | null>(null);
+  const [typeSearch, setTypeSearch] = useState('');
   const [name, setName] = useState('');
   const [slugOverride, setSlugOverride] = useState<string | null>(null);
   const [description, setDescription] = useState('');
@@ -52,6 +54,11 @@ export default function Onboarding() {
 
   const slug = slugOverride ?? slugify(name);
   const selectedType = businessTypes.find((t) => t.key === businessTypeKey);
+  const filteredTypes = useMemo(() => {
+    const q = typeSearch.trim().toLowerCase();
+    if (!q) return businessTypes;
+    return businessTypes.filter((t) => t.label.toLowerCase().includes(q));
+  }, [businessTypes, typeSearch]);
 
   const handleSubmit = async () => {
     if (!cityId || !businessTypeKey || !name.trim() || !slug.trim()) {
@@ -163,33 +170,40 @@ export default function Onboarding() {
               <div>
                 <h1 className="text-white font-semibold text-lg mb-1">What kind of business?</h1>
                 <p className="text-slate-500 text-sm">
-                  This sets up sensible defaults — you can change them later.
+                  Pick the closest match — it sets up sensible defaults you can still change later.
                 </p>
               </div>
-              <div className="space-y-2 max-h-80 overflow-y-auto">
-                {businessTypes.map((type) => (
-                  <button
-                    key={type.key}
-                    onClick={() => setBusinessTypeKey(type.key)}
-                    className={`w-full text-left px-4 py-3 rounded-lg border transition-colors ${
-                      businessTypeKey === type.key
-                        ? 'border-blue-500 bg-blue-600/10'
-                        : 'border-slate-800 hover:border-slate-700'
-                    }`}
-                  >
-                    <span className="text-white text-sm font-medium block mb-1.5">{type.label}</span>
-                    <span className="flex flex-wrap gap-1">
-                      {type.default_modules.map((m) => (
-                        <span
-                          key={m}
-                          className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400"
-                        >
-                          {m}
-                        </span>
-                      ))}
-                    </span>
-                  </button>
-                ))}
+
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  value={typeSearch}
+                  onChange={(e) => setTypeSearch(e.target.value)}
+                  placeholder="Search — e.g. barber, bakery, gym…"
+                  className={`${fieldInputClass} pl-9`}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 max-h-80 overflow-y-auto pr-1 scrollbar-thin">
+                {filteredTypes.length === 0 ? (
+                  <p className="col-span-2 text-sm text-slate-500 text-center py-6">
+                    No match for "{typeSearch}" — pick "Other" and describe it in the details step.
+                  </p>
+                ) : (
+                  filteredTypes.map((type) => (
+                    <button
+                      key={type.key}
+                      onClick={() => setBusinessTypeKey(type.key)}
+                      className={`text-left px-3.5 py-3 rounded-lg border transition-colors ${
+                        businessTypeKey === type.key
+                          ? 'border-blue-500 bg-blue-600/10 text-white'
+                          : 'border-slate-800 hover:border-slate-700 text-slate-300'
+                      }`}
+                    >
+                      <span className="text-sm font-medium">{type.label}</span>
+                    </button>
+                  ))
+                )}
               </div>
               <div className="flex gap-2">
                 <button
@@ -218,69 +232,55 @@ export default function Onboarding() {
                 </p>
               </div>
 
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Business name *</label>
+              <FormField label="Business name" required>
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-                  placeholder="Georges Computers"
+                  className={fieldInputClass}
+                  placeholder="e.g. Georges Computers"
                 />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">URL slug *</label>
+              </FormField>
+              <FormField label="Web address" required helper={`Shoppers will find you at repeatlyos.com/${cities.find((c) => c.id === cityId)?.slug ?? 'city'}/business/${slug || '…'}`}>
                 <input
                   value={slug}
                   onChange={(e) => setSlugOverride(slugify(e.target.value))}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                  className={fieldInputClass}
                   placeholder="georges-computers"
                 />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Description</label>
+              </FormField>
+              <FormField label="Description" helper="A sentence or two shoppers see before anything else.">
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={2}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                  placeholder="What do you sell or offer?"
+                  className={fieldInputClass}
                 />
-              </div>
+              </FormField>
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1">Phone</label>
+                <FormField label="Phone" helper="Optional.">
                   <input
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                    className={fieldInputClass}
                     placeholder="+961 1 234 567"
                   />
-                </div>
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1">WhatsApp</label>
+                </FormField>
+                <FormField label="WhatsApp" helper="Optional.">
                   <input
                     value={whatsapp}
                     onChange={(e) => setWhatsapp(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                    className={fieldInputClass}
                     placeholder="+961 70 123 456"
                   />
-                </div>
+                </FormField>
               </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Public email</label>
-                <input
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Address</label>
-                <input
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-                />
-              </div>
+              <FormField label="Public email" helper="Optional — shown to shoppers, not used to sign in.">
+                <input value={email} onChange={(e) => setEmail(e.target.value)} className={fieldInputClass} placeholder="name@example.com" />
+              </FormField>
+              <FormField label="Address" helper="Optional.">
+                <input value={address} onChange={(e) => setAddress(e.target.value)} className={fieldInputClass} placeholder="Street, building, city" />
+              </FormField>
 
               {/* Vertical-specific fields (migration
                   20260914000012_business_type_custom_fields.sql) — a
@@ -290,13 +290,12 @@ export default function Onboarding() {
               {(selectedType?.custom_fields ?? [])
                 .filter((f) => f.applies_to === 'business')
                 .map((field) => (
-                  <div key={field.key}>
-                    <label className="block text-xs text-slate-400 mb-1">{field.label}</label>
+                  <FormField key={field.key} label={field.label}>
                     {field.type === 'select' ? (
                       <select
                         value={customFieldValues[field.key] ?? ''}
                         onChange={(e) => setCustomFieldValues({ ...customFieldValues, [field.key]: e.target.value })}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                        className={fieldInputClass}
                       >
                         <option value="">—</option>
                         {(field.options ?? []).map((o) => (
@@ -309,10 +308,10 @@ export default function Onboarding() {
                       <input
                         value={customFieldValues[field.key] ?? ''}
                         onChange={(e) => setCustomFieldValues({ ...customFieldValues, [field.key]: e.target.value })}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                        className={fieldInputClass}
                       />
                     )}
-                  </div>
+                  </FormField>
                 ))}
 
               {error && <p className="text-xs text-red-400">{error}</p>}

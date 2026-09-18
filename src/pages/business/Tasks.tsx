@@ -6,6 +6,7 @@ import PageHeader from '../../components/PageHeader';
 import StatCard from '../../components/StatCard';
 import Modal from '../../components/Modal';
 import Toast from '../../components/Toast';
+import FormField, { fieldInputClass } from '../../components/FormField';
 import type { BoardColumn, Task } from '../../types/domain';
 
 const COLUMNS: { key: BoardColumn; label: string; icon: typeof Clock; dot: string; accent: string }[] = [
@@ -169,32 +170,35 @@ export default function Tasks() {
 
       {showAdd && (
         <Modal title="Add task" onClose={() => { setShowAdd(false); setError(null); }} size="sm" icon={<KanbanSquare className="w-4 h-4 text-blue-400" />}>
-          <div className="space-y-3">
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Title *"
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-            />
-            <input
-              value={assignedTo}
-              onChange={(e) => setAssignedTo(e.target.value)}
-              placeholder="Assigned to"
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-            />
-            <input
-              type="date"
-              value={dueAt}
-              onChange={(e) => setDueAt(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-            />
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Notes"
-              rows={2}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-            />
+          <div className="space-y-4">
+            <FormField label="Title" required>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g. Restock shelves"
+                className={fieldInputClass}
+              />
+            </FormField>
+            <FormField label="Assigned to" helper="Optional — a staff name or team.">
+              <input
+                value={assignedTo}
+                onChange={(e) => setAssignedTo(e.target.value)}
+                placeholder="e.g. Karim"
+                className={fieldInputClass}
+              />
+            </FormField>
+            <FormField label="Due date" helper="Optional.">
+              <input type="date" value={dueAt} onChange={(e) => setDueAt(e.target.value)} className={fieldInputClass} />
+            </FormField>
+            <FormField label="Notes" helper="Optional.">
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Any extra detail"
+                rows={2}
+                className={fieldInputClass}
+              />
+            </FormField>
           </div>
           {error && <p className="text-xs text-red-400 mt-3">{error}</p>}
           <div className="flex gap-2 mt-5">

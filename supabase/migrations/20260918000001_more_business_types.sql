@@ -1,33 +1,20 @@
--- RepeatlyOS — DEVELOPMENT SEED DATA ONLY.
+-- Expand the business type catalog well beyond the original 10 launch
+-- templates (barber, clothing_store, supermarket, gym, restaurant,
+-- home_bakery, computer_shop, hotel_guesthouse, tutor, other).
 --
--- This file is NOT a migration. It is meant to be run manually (once, in a
--- dev/staging Supabase project) via the SQL editor, or automatically by
--- `supabase db reset` when using the Supabase CLI locally. Master-prompt §38:
--- "Production deployment must not automatically insert it." Do not add this
--- file to any production deploy step.
+-- User request (2026-09-18): "for businesses types, I want to have any
+-- business type not only few ones!" with a list of examples (gym, home
+-- business, home cooking, home crafting, mobile shop, computer shop,
+-- gaming lounge, hairdresser, barber shop, makeup, dentist, supermarket,
+-- pharmacy, alcohol bar, restaurants, toy store, library and more).
 --
--- Contents: business type templates (configuration, safe to also run in
--- production since these aren't "demo" data, just shared config — see note
--- below) and the first launch city, Batroun (master-prompt §51).
-
--- Business type templates are real configuration, not demo content — safe to
--- (re)run anywhere. `on conflict do nothing` makes this file idempotent.
-insert into public.business_types (key, label, default_modules) values
-  ('barber', 'Barber', array['bookings', 'customers', 'staff', 'payments', 'analytics']),
-  ('clothing_store', 'Clothing Store', array['products', 'inventory', 'orders', 'customers', 'analytics']),
-  ('supermarket', 'Supermarket', array['products', 'inventory', 'orders', 'delivery', 'customers', 'analytics']),
-  ('gym', 'Gym', array['bookings', 'customers', 'staff']),
-  ('restaurant', 'Restaurant', array['products', 'orders', 'bookings', 'delivery', 'customers']),
-  ('home_bakery', 'Home Bakery', array['products', 'orders', 'bookings', 'customers']),
-  ('computer_shop', 'Computer Shop', array['products', 'inventory', 'orders', 'customers', 'analytics']),
-  ('hotel_guesthouse', 'Hotel / Guesthouse', array['bookings', 'customers', 'payments']),
-  ('tutor', 'Tutor', array['bookings', 'customers', 'payments']),
-  ('other', 'Other', array['products', 'orders', 'customers'])
-on conflict (key) do nothing;
-
--- More business types (2026-09-18) — see migration
--- 20260918000001_more_business_types.sql for the same list; kept here too
--- so a fresh `supabase db reset` seeds the full catalog in one step.
+-- Still config, not code (master-prompt §10 — see 20260910000001's
+-- business_types table) — every one of these is just a row, so a future
+-- type needs no app code change either. `default_modules` values must stay
+-- inside src/data/moduleKeys.ts's MODULE_KEYS vocabulary; only the subset
+-- with a real dashboard page (products, inventory, orders, customers,
+-- bookings, services, staff, payments, analytics, tasks, subscriptions,
+-- delivery) actually drives sidebar visibility today.
 insert into public.business_types (key, label, default_modules) values
   ('hair_salon', 'Hair Salon', array['bookings', 'customers', 'staff', 'payments', 'analytics']),
   ('makeup_artist', 'Makeup Artist', array['bookings', 'customers', 'payments']),
@@ -77,15 +64,3 @@ insert into public.business_types (key, label, default_modules) values
   ('bike_shop', 'Bicycle Shop', array['products', 'inventory', 'orders', 'customers']),
   ('tailor', 'Tailor / Alterations', array['orders', 'customers', 'bookings', 'payments'])
 on conflict (key) do nothing;
-
--- Batroun is the first launch city (master-prompt §51) — a config row, not a
--- hardcoded route. `active = true` so merchants can register there starting
--- Phase 2; `marketplace_enabled` stays false until Phase 6 (city
--- marketplace) is ready to actually serve public consumer traffic for it —
--- these are deliberately separate flags (master-prompt §8, §54).
-insert into public.cities (name, slug, display_name, country, region, active, marketplace_enabled, description)
-values (
-  'Batroun', 'batroun', 'Batroun', 'Lebanon', 'North Lebanon', true, false,
-  'Buy Batroun — powered by RepeatlyOS.'
-)
-on conflict (slug) do nothing;

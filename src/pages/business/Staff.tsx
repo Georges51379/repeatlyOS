@@ -10,6 +10,7 @@ import Modal from '../../components/Modal';
 import Toast from '../../components/Toast';
 import EmptyState from '../../components/EmptyState';
 import { SkeletonTable } from '../../components/Skeletons';
+import FormField, { fieldInputClass } from '../../components/FormField';
 import type { StaffMember } from '../../types/domain';
 
 function initials(name: string): string {
@@ -171,25 +172,31 @@ export default function Staff() {
 
       {showAdd && (
         <Modal title="Add staff member" onClose={() => { setShowAdd(false); setError(null); }} size="sm" icon={<UserCog className="w-4 h-4 text-blue-400" />}>
-          <div className="space-y-3">
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Full name *"
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-            />
-            <input
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="Phone"
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-            />
-            <input
-              value={roleTitle}
-              onChange={(e) => setRoleTitle(e.target.value)}
-              placeholder="Role (e.g. Barber)"
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-            />
+          <div className="space-y-4">
+            <FormField label="Full name" required>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Karim Saab"
+                className={fieldInputClass}
+              />
+            </FormField>
+            <FormField label="Phone" helper="Optional.">
+              <input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+961 70 123 456"
+                className={fieldInputClass}
+              />
+            </FormField>
+            <FormField label="Role" helper="What they do — shown next to their name.">
+              <input
+                value={roleTitle}
+                onChange={(e) => setRoleTitle(e.target.value)}
+                placeholder="e.g. Barber, Cashier, Manager"
+                className={fieldInputClass}
+              />
+            </FormField>
           </div>
           {error && <p className="text-xs text-red-400 mt-3">{error}</p>}
           <div className="flex gap-2 mt-5">

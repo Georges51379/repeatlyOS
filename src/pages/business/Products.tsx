@@ -13,6 +13,8 @@ import Toast from '../../components/Toast';
 import EmptyState from '../../components/EmptyState';
 import { SkeletonTable } from '../../components/Skeletons';
 import LazyImage from '../../components/LazyImage';
+import FormField, { fieldInputClass } from '../../components/FormField';
+import { placeholderImage } from '../../lib/placeholderImage';
 import type { Product } from '../../types/domain';
 
 interface AttributeRow {
@@ -276,54 +278,80 @@ export default function Products() {
 
       {form && (
         <Modal title={form.id ? 'Edit product' : 'Add product'} onClose={() => { setForm(null); setError(null); }} icon={<Package className="w-4 h-4 text-blue-400" />}>
-          <div className="space-y-3">
-            <input
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="Name *"
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-            />
-            <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-4">
+            <FormField label="Product name" required helper="What shoppers will see — keep it short and specific.">
               <input
-                value={form.category}
-                onChange={(e) => setForm({ ...form, category: e.target.value })}
-                placeholder="Category"
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="e.g. Nike Air Max 90"
+                className={fieldInputClass}
               />
-              <input
-                value={form.sku}
-                onChange={(e) => setForm({ ...form, sku: e.target.value })}
-                placeholder="SKU"
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <input
-                type="number"
-                value={form.price}
-                onChange={(e) => setForm({ ...form, price: e.target.value })}
-                placeholder="Price *"
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-              />
-              <input
-                type="number"
-                value={form.sale_price}
-                onChange={(e) => setForm({ ...form, sale_price: e.target.value })}
-                placeholder="Sale price"
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-              />
-            </div>
-            <input
-              value={form.image_url}
-              onChange={(e) => setForm({ ...form, image_url: e.target.value })}
-              placeholder="Image URL"
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-            />
+            </FormField>
 
-            <div>
-              <p className="text-xs text-slate-500 mb-2">
-                Attributes (brand, size, color, edition…) — lets shoppers filter by them in search.
-              </p>
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Category" helper="Groups it with similar items.">
+                <input
+                  value={form.category}
+                  onChange={(e) => setForm({ ...form, category: e.target.value })}
+                  placeholder="e.g. Shoes"
+                  className={fieldInputClass}
+                />
+              </FormField>
+              <FormField label="SKU" helper="Your own internal code, if you use one.">
+                <input
+                  value={form.sku}
+                  onChange={(e) => setForm({ ...form, sku: e.target.value })}
+                  placeholder="e.g. SHO-001"
+                  className={fieldInputClass}
+                />
+              </FormField>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Price (USD)" required>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={form.price}
+                  onChange={(e) => setForm({ ...form, price: e.target.value })}
+                  placeholder="0.00"
+                  className={fieldInputClass}
+                />
+              </FormField>
+              <FormField label="Sale price (USD)" helper="Optional — shown crossed-out next to the regular price.">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={form.sale_price}
+                  onChange={(e) => setForm({ ...form, sale_price: e.target.value })}
+                  placeholder="Leave blank if not on sale"
+                  className={fieldInputClass}
+                />
+              </FormField>
+            </div>
+
+            <FormField label="Photo" helper="Paste a link to an image online. Leave blank to use a placeholder photo for now.">
+              <div className="flex items-center gap-3">
+                <div className="w-14 h-14 rounded-lg bg-slate-800 overflow-hidden shrink-0 border border-slate-800">
+                  <LazyImage
+                    src={form.image_url.trim() || placeholderImage('product', form.id ?? 'preview', { w: 112, h: 112 })}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <input
+                  value={form.image_url}
+                  onChange={(e) => setForm({ ...form, image_url: e.target.value })}
+                  placeholder="https://…"
+                  className={fieldInputClass}
+                />
+              </div>
+            </FormField>
+
+            <FormField
+              label="Attributes"
+              helper="Optional — things like brand, size, or color. Shoppers can filter search by these."
+            >
               <div className="space-y-2">
                 {form.attributes.map((attr, i) => (
                   <div key={i} className="flex gap-2">
@@ -334,8 +362,8 @@ export default function Products() {
                         attributes[i] = { ...attributes[i], key: e.target.value };
                         setForm({ ...form, attributes });
                       }}
-                      placeholder="key (e.g. brand)"
-                      className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                      placeholder="e.g. brand"
+                      className={`flex-1 ${fieldInputClass} py-1.5 text-xs`}
                     />
                     <input
                       value={attr.value}
@@ -344,12 +372,13 @@ export default function Products() {
                         attributes[i] = { ...attributes[i], value: e.target.value };
                         setForm({ ...form, attributes });
                       }}
-                      placeholder="value (e.g. Nike)"
-                      className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                      placeholder="e.g. Nike"
+                      className={`flex-1 ${fieldInputClass} py-1.5 text-xs`}
                     />
                     <button
                       onClick={() => setForm({ ...form, attributes: form.attributes.filter((_, j) => j !== i) })}
                       className="text-slate-600 hover:text-red-400 p-1"
+                      aria-label="Remove attribute"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -362,7 +391,7 @@ export default function Products() {
               >
                 <Plus className="w-3 h-3" /> Add attribute
               </button>
-            </div>
+            </FormField>
           </div>
 
           {error && <p className="text-xs text-red-400 mt-3">{error}</p>}

@@ -12,6 +12,7 @@ import Modal from '../../components/Modal';
 import Toast from '../../components/Toast';
 import EmptyState from '../../components/EmptyState';
 import { SkeletonTable } from '../../components/Skeletons';
+import FormField, { fieldInputClass } from '../../components/FormField';
 import type { Service } from '../../types/domain';
 
 interface FormState {
@@ -205,35 +206,45 @@ export default function Services() {
 
       {form && (
         <Modal title={form.id ? 'Edit service' : 'Add service'} onClose={() => { setForm(null); setError(null); }} size="sm" icon={<Wrench className="w-4 h-4 text-blue-400" />}>
-          <div className="space-y-3">
-            <input
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="Name *"
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-            />
-            <textarea
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              placeholder="Description"
-              rows={2}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-            />
+          <div className="space-y-4">
+            <FormField label="Service name" required helper="What customers will book — e.g. a treatment, session, or repair.">
+              <input
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="e.g. Men's Haircut"
+                className={fieldInputClass}
+              />
+            </FormField>
+            <FormField label="Description" helper="Optional — a sentence or two customers see before booking.">
+              <textarea
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                placeholder="What's included in this service?"
+                rows={2}
+                className={fieldInputClass}
+              />
+            </FormField>
             <div className="grid grid-cols-2 gap-3">
-              <input
-                type="number"
-                value={form.duration_minutes}
-                onChange={(e) => setForm({ ...form, duration_minutes: e.target.value })}
-                placeholder="Duration (min)"
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-              />
-              <input
-                type="number"
-                value={form.price}
-                onChange={(e) => setForm({ ...form, price: e.target.value })}
-                placeholder="Price"
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-              />
+              <FormField label="Duration" helper="In minutes.">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={form.duration_minutes}
+                  onChange={(e) => setForm({ ...form, duration_minutes: e.target.value })}
+                  placeholder="30"
+                  className={fieldInputClass}
+                />
+              </FormField>
+              <FormField label="Price (USD)" helper="Leave blank if it varies.">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={form.price}
+                  onChange={(e) => setForm({ ...form, price: e.target.value })}
+                  placeholder="0.00"
+                  className={fieldInputClass}
+                />
+              </FormField>
             </div>
           </div>
 

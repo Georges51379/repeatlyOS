@@ -12,6 +12,7 @@ import Modal from '../../components/Modal';
 import Toast from '../../components/Toast';
 import EmptyState from '../../components/EmptyState';
 import { SkeletonCard } from '../../components/Skeletons';
+import FormField, { fieldInputClass } from '../../components/FormField';
 import type { Customer, Order, OrderItem, OrderStatus, Product } from '../../types/domain';
 
 const STATUSES: OrderStatus[] = ['new', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled', 'refunded'];
@@ -239,41 +240,46 @@ export default function Orders() {
 
       {showAdd && (
         <Modal title="New order" onClose={() => { setShowAdd(false); setLineItems([]); setError(null); }} icon={<ShoppingCart className="w-4 h-4 text-blue-400" />}>
-          <div className="space-y-3">
-            <select
-              value={customerId}
-              onChange={(e) => setCustomerId(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-            >
-              <option value="">Walk-in (no customer)</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.full_name}
-                </option>
-              ))}
-            </select>
-
-            <div className="flex gap-2">
+          <div className="space-y-4">
+            <FormField label="Customer" helper="Optional — leave as walk-in if you don't have their details.">
               <select
-                value={selectedProduct}
-                onChange={(e) => setSelectedProduct(e.target.value)}
-                className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                value={customerId}
+                onChange={(e) => setCustomerId(e.target.value)}
+                className={fieldInputClass}
               >
-                <option value="">Select product…</option>
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} — ${p.sale_price ?? p.price}
+                <option value="">Walk-in (no customer)</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.full_name}
                   </option>
                 ))}
               </select>
-              <button
-                onClick={addLineItem}
-                disabled={!selectedProduct}
-                className="px-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 rounded-lg text-slate-300"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-            </div>
+            </FormField>
+
+            <FormField label="Add products" required>
+              <div className="flex gap-2">
+                <select
+                  value={selectedProduct}
+                  onChange={(e) => setSelectedProduct(e.target.value)}
+                  className={`flex-1 ${fieldInputClass}`}
+                >
+                  <option value="">Select a product…</option>
+                  {products.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} — ${p.sale_price ?? p.price}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={addLineItem}
+                  disabled={!selectedProduct}
+                  className="px-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 rounded-lg text-slate-300"
+                  aria-label="Add to order"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+            </FormField>
 
             {lineItems.length > 0 && (
               <div className="space-y-1.5 border-t border-slate-800 pt-3">
